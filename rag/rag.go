@@ -1,75 +1,41 @@
 package rag
 
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-)
+import "github.com/xwb1989/sqlparser"
 
-// const testurl = "https://foodie-f019.onrender.com/api/v1/account/login"
-// const llmurl = "https://api.openai.com/v1/models"
-const llmurl = "https://api.openai.com/v1/chat/completions"
-const role = "user"
+type LLM interface {
+	// initializes connection to the LLM API parsing some specified LLMOpts to return generated SQLQuer
+	GenerateQuery() (string, error)
 
-// LLMOpts contains fields needed to connect to an LLM 
-type LLMOpts struct {
-	Query string
-	Context any
-	ApiKey string
-	OrgId string
-	ProjectId string
-	Model string
-	Temp string
+	// GenerateResponse takens data gotten after Query has been fired
+	// to return data in a textual or conversational manner
+	GenerateResponse(data any)
 }
 
-// Connllm initializes connection to a LLM'S API parsing some specified LLMOpts
-func  Connllm(opts LLMOpts) error {
-	payload := map[string]interface{}{
-		"model": opts.Model,
-		"messages": []map[string]string{
-			{"role": role, "content": opts.Query},
-		},
-		// "context": opts.context, //Mapper Schema
-		// "temperature": opts.Temp,
+// LLMOpts contains fields needed to connect to an LLM
+type LLMOpts struct {
+	DBType    string
+	Query     string
+	Context   any
+	ApiKey    string
+	OrgId     string
+	ProjectId string
+	Model     string
+	Temp      string
+}
+
+func InitLLM(llmType string, opts LLMOpts) LLM {
+	if llmType == "gemini" {
+		return NewGeminiLLM(opts)
 	}
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("error marshaling json: %v", err)
+	if llmType == "openai" {
+		return NewOpenAiLLM(opts)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, llmurl, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	// Add headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", opts.ApiKey))
-	req.Header.Set("OpenAI-Organization", opts.OrgId)
-	req.Header.Set("OpenAI-Project", opts.ProjectId)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
-		
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("non-ok http status: %v", resp.Status)
-		
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error reading response body: %v", err)
-		
-	}
-
-	fmt.Printf("Response: %s\n", body)
 	return nil
+}
+
+func validQuery(query string) bool {
+	_, err := sqlparser.Parse(query)
+	return err == nil
 }
