@@ -2,14 +2,17 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/gentcod/nlp-to-sql/api"
 	db "github.com/gentcod/nlp-to-sql/internal/database"
 	mp "github.com/gentcod/nlp-to-sql/mapper"
+
 	"github.com/gentcod/nlp-to-sql/rag"
 	"github.com/gentcod/nlp-to-sql/util"
 	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -18,7 +21,8 @@ func main() {
 		log.Fatal("cannot load config", err)
 	}
 
-	conn, err := sql.Open("mysql", config.DBUrl)
+	// conn, err := sql.Open("mysql", config.DBUrl)
+	conn, err := sql.Open("postgres", config.DBUrl)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
@@ -26,24 +30,35 @@ func main() {
 
 	// store := db.NewStore(conn)
 
-	mapper := mp.NewMapper()
-	err = mapper.MapSchema(conn, config.DBName)
+	mapper := mp.InitMapper("postgres")
+	schema, err := mapper.MapSchema(conn, config.DBName)
 	if err != nil {
 		log.Fatal("Error mapping schema:", err)
 	}
 
-	err = rag.Connllm(rag.LLMOpts{
-		Query: "What can you say about Oyefule Oluwatayo",
-		Context: mapper.Schema,
-		ApiKey: config.ApiKey,
-		OrgId: config.OrgId,
+	llm := rag.NewGeminiLLM(rag.LLMOpts{
+		DBType:    "postgres",
+		Query:     "I want to check the details of the last registered customer",
+		Context:   schema,
+		ApiKey:    config.ApiKey,
+		OrgId:     config.OrgId,
 		ProjectId: config.ProjectId,
-		Model: config.Model,
-		Temp: config.Temp,
+		Model:     config.Model,
+		Temp:      config.Temp,
 	})
+	query, err := llm.GenerateQuery()
 	if err != nil {
 		log.Fatal("Error connecting to LLM: ", err)
 	}
+
+	fmt.Println("Query: ", query)
+
+	data, err := db.GetData(conn, query)
+	if err != nil {
+		log.Fatal("Error getting queried data: ", err)
+	}
+
+	fmt.Println(data)
 
 	// runGinServer(config, store)
 }
