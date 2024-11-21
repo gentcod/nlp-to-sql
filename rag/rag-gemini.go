@@ -88,16 +88,10 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 	if err != nil {
 		return llm.Query, nil
 	}
-	resp, err := getGeminiResponse(res)
+	llm.Query, err = getGeminiResponse(res)
 	if err != nil {
 		return llm.Query, nil
 	}
-
-	if !validQuery(resp) {
-		return llm.Query, fmt.Errorf("invalid query: %v", resp)
-	}
-
-	llm.Query = resp
 
 	return llm.Query, nil
 }

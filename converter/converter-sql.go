@@ -32,8 +32,6 @@ func (converter *SQLConverter) Convert(llmType, dbUrl, dbName string, ragOpts ra
 		return converter.Response, fmt.Errorf("error mapping schema: %v", err)
 	}
 
-	fmt.Printf("Database Schema: %+v\n", schema)
-
 	ragOpts.Context = schema
 	llm := rag.InitLLM(
 		llmType,
@@ -42,6 +40,11 @@ func (converter *SQLConverter) Convert(llmType, dbUrl, dbName string, ragOpts ra
 	query, err := llm.GenerateQuery()
 	if err != nil {
 		return converter.Response, fmt.Errorf("error evaluating chat with LLM: %v", err)
+	}
+
+	
+	if !rag.ValidQuery(query) {
+		return query, nil
 	}
 
 	fmt.Printf("Query: %+v\n", query)

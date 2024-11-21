@@ -4,6 +4,8 @@ A backend application that converts NLP to SQL queries. It takes a textual reque
 
 #
 
+#### *PROJECT OVERVIEW*
+
 #### Example Question/Request:
 
 - > How many accounts have been opened till date?
@@ -20,7 +22,7 @@ A backend application that converts NLP to SQL queries. It takes a textual reque
 
 #
 
-### SECURITY CONSIDERATIONS
+#### *SECURITY CONSIDERATIONS*
 
 - Prompts are engineered to ensure that conversations can only lead to **READ** operations:
 
