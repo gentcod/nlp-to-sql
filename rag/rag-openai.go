@@ -9,10 +9,12 @@ import (
 )
 
 type OpenAiLLM struct {
-	Query string
-	Opts  LLMOpts
+	Opts     LLMOpts
+	Query    string
+	Response string
 }
 
+// NewGeminiLLM is used to initalize a LLM that communicates with OpenAI's ChatGPT API.
 func NewOpenAiLLM(opts LLMOpts) LLM {
 	return &OpenAiLLM{
 		Opts: opts,
@@ -22,7 +24,7 @@ func NewOpenAiLLM(opts LLMOpts) LLM {
 const openaiurl = "https://api.openai.com/v1/chat/completions"
 const openairole = "user"
 
-func  (llm *OpenAiLLM) GenerateQuery() (string, error) {
+func (llm *OpenAiLLM) GenerateQuery() (string, error) {
 	payload := map[string]interface{}{
 		"model": llm.Opts.Model,
 		"messages": []map[string]string{
@@ -51,25 +53,30 @@ func  (llm *OpenAiLLM) GenerateQuery() (string, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		return llm.Query, fmt.Errorf("error sending request: %v", err)
-		
+
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return llm.Query, fmt.Errorf("non-ok http status: %v", resp.Status)
-		
+
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return llm.Query, fmt.Errorf("error reading response body: %v", err)
-		
+
 	}
 
 	fmt.Printf("Response: %s\n", body)
+	if !validQuery(string(body)) {
+		return "", fmt.Errorf("invalid query: %v", string(body))
+	}
+
 	return llm.Query, nil
 }
 
-func (llm *OpenAiLLM) GenerateResponse(data any) {
+func (llm *OpenAiLLM) GenerateResponse(data interface{}) (string, error) {
 
+	return llm.Response, nil
 }

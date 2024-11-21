@@ -9,10 +9,12 @@ import (
 )
 
 type GeminiLLM struct {
-	Query string
-	Opts  LLMOpts
+	Opts     LLMOpts
+	Query    string
+	Response string
 }
 
+// NewGeminiLLM is used to initalize a LLM that communicates with Google's Gemini API.
 func NewGeminiLLM(opts LLMOpts) LLM {
 	return &GeminiLLM{
 		Opts: opts,
@@ -33,7 +35,8 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 	cs.History = []*genai.Content{
 		{
 			Parts: []genai.Part{
-				genai.Text(fmt.Sprintf("Generate a sql query for a %s database from the next stream of input or text", llm.Opts.DBType)),
+				// genai.Text(fmt.Sprintf("Generate a sql query for a %s database from the next stream of input or text", llm.Opts.DBType)),
+				genai.Text("Generate a sql query from the next stream of input or text"),
 			},
 			Role: "user",
 		},
@@ -52,6 +55,12 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 		{
 			Parts: []genai.Part{
 				genai.Text("Only queries based on the database schema should be generated"),
+			},
+			Role: "user",
+		},
+		{
+			Parts: []genai.Part{
+				genai.Text("Omit fields or columns with sensitive data such as password, hashed_password, api_keys or similar fields"),
 			},
 			Role: "user",
 		},
@@ -79,18 +88,62 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 	if err != nil {
 		return llm.Query, nil
 	}
-	llm.Query, err = getGeminiResponse(res)
+	resp, err := getGeminiResponse(res)
 	if err != nil {
 		return llm.Query, nil
 	}
 
-	fmt.Println(llm.Query)
+	if !validQuery(resp) {
+		return llm.Query, fmt.Errorf("invalid query: %v", resp)
+	}
+
+	llm.Query = resp
 
 	return llm.Query, nil
 }
 
-func (llm *GeminiLLM) GenerateResponse(data any) {
+func (llm *GeminiLLM) GenerateResponse(data interface{}) (string, error) {
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(llm.Opts.ApiKey))
+	if err != nil {
+		return llm.Response, nil
+	}
+	defer client.Close()
 
+	model := client.GenerativeModel(llm.Opts.Model)
+	cs := model.StartChat()
+
+	cs.History = []*genai.Content{
+		{
+			Parts: []genai.Part{
+				genai.Text("Generate a summary from the next stream of input or text"),
+			},
+			Role: "user",
+		},
+		{
+			Parts: []genai.Part{
+				genai.Text(fmt.Sprintf("Use these data: %v retrieved from the database in a conversational manner", data)),
+			},
+			Role: "user",
+		},
+		{
+			Parts: []genai.Part{
+				genai.Text(fmt.Sprintf("Use this as context for the data returned: %v", llm.Opts.Query)),
+			},
+			Role: "user",
+		},
+	}
+
+	res, err := cs.SendMessage(ctx, genai.Text("What is the summary of the data?"))
+	if err != nil {
+		return llm.Response, nil
+	}
+	llm.Response, err = getGeminiResponse(res)
+	if err != nil {
+		return llm.Response, nil
+	}
+
+	return llm.Response, nil
 }
 
 func getGeminiResponse(resp *genai.GenerateContentResponse) (string, error) {
@@ -98,10 +151,7 @@ func getGeminiResponse(resp *genai.GenerateContentResponse) (string, error) {
 	for _, cand := range resp.Candidates {
 		if cand.Content != nil {
 			for _, part := range cand.Content.Parts {
-				// fmt.Println("res", part)
 				res = fmt.Sprintf("%v", part)
-				fmt.Println(validQuery(res))
-
 			}
 		}
 	}

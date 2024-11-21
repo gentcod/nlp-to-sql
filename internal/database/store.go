@@ -24,6 +24,7 @@ func NewStore(db *sql.DB) Store {
 	}
 }
 
+// GetData queries the database to return related data
 func GetData(db *sql.DB, query string) ([]map[string]interface{}, error) {
 	rows, err := db.Query(query)
 	if err != nil {
@@ -37,14 +38,14 @@ func GetData(db *sql.DB, query string) ([]map[string]interface{}, error) {
 	}
 
 	values := make([]interface{}, len(columns))
-	valuePtrs := make([]interface{}, len(columns))
+	valPointers := make([]interface{}, len(columns))
 	for i := range values {
-		valuePtrs[i] = &values[i]
+		valPointers[i] = &values[i]
 	}
 
 	results := []map[string]interface{}{}
 	for rows.Next() {
-		if err := rows.Scan(valuePtrs...); err != nil {
+		if err := rows.Scan(valPointers...); err != nil {
 			return nil, fmt.Errorf("row scanning failed: %w", err)
 		}
 

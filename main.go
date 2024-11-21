@@ -6,12 +6,12 @@ import (
 	"log"
 
 	"github.com/gentcod/nlp-to-sql/api"
+	conv "github.com/gentcod/nlp-to-sql/converter"
 	db "github.com/gentcod/nlp-to-sql/internal/database"
-	mp "github.com/gentcod/nlp-to-sql/mapper"
 
 	"github.com/gentcod/nlp-to-sql/rag"
 	"github.com/gentcod/nlp-to-sql/util"
-	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 )
 
@@ -30,35 +30,26 @@ func main() {
 
 	// store := db.NewStore(conn)
 
-	mapper := mp.InitMapper("postgres")
-	schema, err := mapper.MapSchema(conn, config.DBName)
+	converter := conv.NewSQLConverter()
+	resp, err := converter.Convert(
+		"gemini",
+		config.DBUrl,
+		config.DBName,
+		rag.LLMOpts{
+			DBType:    "postgres",
+			Query:     "Who was the last customer to create an account?",
+			ApiKey:    config.ApiKey,
+			OrgId:     config.OrgId,
+			ProjectId: config.ProjectId,
+			Model:     config.Model,
+			Temp:      config.Temp,
+		},
+	)
 	if err != nil {
-		log.Fatal("Error mapping schema:", err)
+		log.Fatal("Error converting request: ", err)
 	}
 
-	llm := rag.NewGeminiLLM(rag.LLMOpts{
-		DBType:    "postgres",
-		Query:     "I want to check the details of the last registered customer",
-		Context:   schema,
-		ApiKey:    config.ApiKey,
-		OrgId:     config.OrgId,
-		ProjectId: config.ProjectId,
-		Model:     config.Model,
-		Temp:      config.Temp,
-	})
-	query, err := llm.GenerateQuery()
-	if err != nil {
-		log.Fatal("Error connecting to LLM: ", err)
-	}
-
-	fmt.Println("Query: ", query)
-
-	data, err := db.GetData(conn, query)
-	if err != nil {
-		log.Fatal("Error getting queried data: ", err)
-	}
-
-	fmt.Println(data)
+	fmt.Println("Generated Response: ", resp)
 
 	// runGinServer(config, store)
 }
@@ -66,11 +57,11 @@ func main() {
 func runGinServer(config util.Config, store db.Store) {
 	server, err := api.NewServer(config, store)
 	if err != nil {
-		log.Fatal("Couldn't initialize the server:", err)
+		log.Fatal("couldn't initialize the server:", err)
 	}
 
 	err = server.Start(config.Port)
 	if err != nil {
-		log.Fatal("Couldn't start up server:", err)
+		log.Fatal("couldn't start up server:", err)
 	}
 }

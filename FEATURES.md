@@ -5,3 +5,4 @@
 ### Feature to allow AI model choice for chat. This will be implemented in conection to the forementioned feature
 ### Hashing and Caching of user db credentials
 ### Implement parsed data to be returned 
+### Train a model to handle specific queries
