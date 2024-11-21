@@ -8,6 +8,7 @@ type PQMapper struct {
 	Schema map[string]map[string]string
 }
 
+// NewPQMapper initializes a Mapper that communicates with Postgres Databases.
 func NewPQMapper() Mapper {
 	return &PQMapper{}
 }

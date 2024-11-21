@@ -9,6 +9,7 @@ type MySQLMapper struct {
 	Schema map[string]map[string]string
 }
 
+// NewMySQLMapper initializes a Mapper that communicates with MySQL Databases.
 func NewMySQLMapper() Mapper {
 	return &MySQLMapper{}
 }
