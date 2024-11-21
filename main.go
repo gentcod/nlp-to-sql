@@ -37,7 +37,7 @@ func main() {
 		config.DBName,
 		rag.LLMOpts{
 			DBType:    "postgres",
-			Query:     "Who was the last customer to create an account?",
+			Query:     "How many accounts have been opened till date?",
 			ApiKey:    config.ApiKey,
 			OrgId:     config.OrgId,
 			ProjectId: config.ProjectId,
