@@ -37,7 +37,7 @@ func main() {
 		config.DBName,
 		rag.LLMOpts{
 			DBType:    "postgres",
-			Query:     "How many accounts have been opened till date?",
+			Query:     "How many dogs have been bought in the past year?",
 			ApiKey:    config.ApiKey,
 			OrgId:     config.OrgId,
 			ProjectId: config.ProjectId,

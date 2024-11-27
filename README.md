@@ -1,8 +1,10 @@
 # nlp-to-sql
 
-A backend application that converts NLP to SQL queries. It takes a textual request and returns a textual response based on the queried data.
+A backend application that enables conversational database interactions, leveraging Retrieval-Augmented Generation (RAG) to generate context-aware, tailored responses. It converts NLP to SQL queries. It takes a textual request and returns a textual response based on the queried data.
 
 #
+
+#### *PROJECT OVERVIEW*
 
 #### Example Question/Request:
 
@@ -20,7 +22,7 @@ A backend application that converts NLP to SQL queries. It takes a textual reque
 
 #
 
-### SECURITY CONSIDERATIONS
+#### *SECURITY CONSIDERATIONS*
 
 - Prompts are engineered to ensure that conversations can only lead to **READ** operations:
 

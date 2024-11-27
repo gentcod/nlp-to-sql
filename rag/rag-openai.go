@@ -69,9 +69,7 @@ func (llm *OpenAiLLM) GenerateQuery() (string, error) {
 	}
 
 	fmt.Printf("Response: %s\n", body)
-	if !validQuery(string(body)) {
-		return "", fmt.Errorf("invalid query: %v", string(body))
-	}
+
 
 	return llm.Query, nil
 }
