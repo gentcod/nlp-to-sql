@@ -40,6 +40,14 @@ func InitLLM(llmType string, opts LLMOpts) LLM {
 
 // ValidQuery checks if parsed SQL Query is a valid query
 func ValidQuery(query string) bool {
-	_, err := sqlparser.Parse(query)
-	return err == nil
+	stmt, err := sqlparser.Parse(query)
+	valq := false
+	switch stmt := stmt.(type) {
+		case *sqlparser.Select:
+			valq = true
+		//default:
+			//return false
+	}
+
+	return err == nil || valq
 }
