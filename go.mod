@@ -10,6 +10,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/generative-ai-go v0.18.0
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.10.9
 	github.com/o1egl/paseto v1.0.0
 	github.com/stretchr/testify v1.9.0
