@@ -13,10 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// TODO: CREATE CACHE FOR DbUrl AND DB SCHEMA
-
-// TODO: CHECK IF DATA IS STILL CACHED -> If cached -> return schema, if not cached -> refresh cache data
-
 // Client represents a connected WebSocket client
 type Client struct {
 	conn      *websocket.Conn
