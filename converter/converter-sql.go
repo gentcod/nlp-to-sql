@@ -5,49 +5,39 @@ import (
 	"fmt"
 
 	db "github.com/gentcod/nlp-to-sql/internal/database"
-	mp "github.com/gentcod/nlp-to-sql/mapper"
 	"github.com/gentcod/nlp-to-sql/rag"
+	"github.com/gentcod/nlp-to-sql/util"
 )
 
 type SQLConverter struct {
 	Response string
+	Opts rag.LLMOpts
 }
 
 // NewSQLConverter initializes a Converter that can be used to handle SQL queries
-func NewSQLConverter() Converter {
-	return &SQLConverter{}
+func NewSQLConverter(ragOpts rag.LLMOpts) Converter {
+	return &SQLConverter{
+		Opts: ragOpts,
+	}
 }
 
-func (converter *SQLConverter) Convert(llmType, dbUrl, dbName string, ragOpts rag.LLMOpts) (string, error) {
-
-	conn, err := sql.Open(ragOpts.DBType, dbUrl)
-	if err != nil {
-		return converter.Response, fmt.Errorf("failed to connect to database: %v", err)
-	}
-	defer conn.Close()
-
-	mapper := mp.InitMapper(ragOpts.DBType)
-	schema, err := mapper.MapSchema(conn, dbName)
-	if err != nil {
-		return converter.Response, fmt.Errorf("error mapping schema: %v", err)
-	}
-
-	ragOpts.Context = schema
+func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema map[string]map[string]string) (string, error) {
+	converter.Opts.Context = schema
 	llm := rag.InitLLM(
 		llmType,
-		ragOpts,
+		converter.Opts,
 	)
-	query, err := llm.GenerateQuery()
+	query, err := llm.GenerateQuery(que)
 	if err != nil {
 		return converter.Response, fmt.Errorf("error evaluating chat with LLM: %v", err)
 	}
 
-	
-	if !rag.ValidQuery(query) {
-		return query, nil
-	}
 
 	fmt.Printf("Query: %+v\n", query)
+
+	if !util.ValidQuery(query) {
+		return query, nil
+	}
 
 	data, err := db.GetData(conn, query)
 	if err != nil {
@@ -56,7 +46,7 @@ func (converter *SQLConverter) Convert(llmType, dbUrl, dbName string, ragOpts ra
 
 	fmt.Printf("Queried data: %+v\n", data)
 
-	converter.Response, err = llm.GenerateResponse(data)
+	converter.Response, err = llm.GenerateResponse(data, que)
 	if err != nil {
 		return converter.Response, fmt.Errorf("error converting data to textual response: %v", err)
 	}

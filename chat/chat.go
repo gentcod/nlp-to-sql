@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	conv "github.com/gentcod/nlp-to-sql/converter"
 	"github.com/gentcod/nlp-to-sql/token"
 	"github.com/gentcod/nlp-to-sql/util"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -22,31 +24,23 @@ type Message struct {
 
 // Response defines a structured response message format
 type Response struct {
-	Type      string          `json:"type"`
-	Status    string          `json:"status"`
-	Payload   json.RawMessage `json:"payload"`
-	Timestamp time.Time       `json:"timestamp"`
+	Type      string    `json:"type"`
+	Status    string    `json:"status"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // Advanced WebSocket server
 type WebSocketServer struct {
 	tokenGenerator token.Generator
+	converter      conv.Converter
 	upgrader       websocket.Upgrader
 	clients        map[*Client]bool
 	mutex          sync.RWMutex
 }
 
-// Client represents a connected WebSocket client
-type Client struct {
-	conn    *websocket.Conn
-	send    chan Response
-	receive chan Message
-	close   chan struct{}
-	isAlive bool
-}
-
 // NewWebSocketServer creates a new WebSocket server
-func NewWebSocketServer(config util.Config) (*WebSocketServer, error) {
+func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocketServer, error) {
 	tokenGenerator, err := token.NewPasetoGenerator(config.TokenSymmetricKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize token generator: %v", err)
@@ -62,6 +56,7 @@ func NewWebSocketServer(config util.Config) (*WebSocketServer, error) {
 		},
 		clients:        make(map[*Client]bool),
 		tokenGenerator: tokenGenerator,
+		converter:      converter,
 	}, nil
 }
 
@@ -75,11 +70,12 @@ func (srv *WebSocketServer) handleConnection(w http.ResponseWriter, r *http.Requ
 
 	// Create a new client
 	client := &Client{
-		conn:    conn,
-		send:    make(chan Response, 256),
-		receive: make(chan Message, 256),
-		close:   make(chan struct{}),
-		isAlive: true,
+		conn:      conn,
+		converter: srv.converter,
+		send:      make(chan Response, 256),
+		receive:   make(chan Message, 256),
+		close:     make(chan struct{}),
+		isAlive:   true,
 	}
 
 	// Register client
@@ -98,6 +94,10 @@ func (c *Client) readPump() {
 	defer func() {
 		c.conn.Close()
 		close(c.close)
+		if c.dbConn != nil {
+			fmt.Println("closing db conn")
+			c.dbConn.Close()
+		}
 	}()
 
 	// Set read deadline to detect disconnections
@@ -108,7 +108,6 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		// Read a message
 		var msg Message
 		err := c.conn.ReadJSON(&msg)
 		if err != nil {
@@ -131,6 +130,10 @@ func (c *Client) writePump() {
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
+		if c.dbConn != nil {
+			fmt.Println("closing db conn")
+			c.dbConn.Close()
+		}
 	}()
 
 	for {
@@ -163,6 +166,10 @@ func (c *Client) writePump() {
 func (c *Client) processingPump() {
 	defer func() {
 		c.conn.Close()
+		if c.dbConn != nil {
+			fmt.Println("closing db conn")
+			c.dbConn.Close()
+		}
 	}()
 
 	for {
@@ -186,8 +193,8 @@ func (c *Client) processingPump() {
 func (srv *WebSocketServer) StartChatServer(config util.Config) error {
 	connFunc := http.HandlerFunc(srv.handleConnection)
 
-	http.Handle("/ws", authMiddleware(srv.tokenGenerator)(connFunc))
-	// http.Handle("/ws", connFunc)
+	// http.Handle("/ws", authMiddleware(srv.tokenGenerator)(connFunc))
+	http.Handle("/ws", connFunc)
 
 	log.Printf("WebSocket Server starting on %v", config.WSPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.WSPort), nil); err != nil {

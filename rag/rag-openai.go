@@ -24,11 +24,11 @@ func NewOpenAiLLM(opts LLMOpts) LLM {
 const openaiurl = "https://api.openai.com/v1/chat/completions"
 const openairole = "user"
 
-func (llm *OpenAiLLM) GenerateQuery() (string, error) {
+func (llm *OpenAiLLM) GenerateQuery(que string) (string, error) {
 	payload := map[string]interface{}{
 		"model": llm.Opts.Model,
 		"messages": []map[string]string{
-			{"role": openairole, "content": llm.Opts.Query},
+			{"role": openairole, "content": que},
 		},
 		// "context": llm.Opts.context, //Mapper Schema
 		// "temperature": llm.Opts.Temp,
@@ -74,7 +74,7 @@ func (llm *OpenAiLLM) GenerateQuery() (string, error) {
 	return llm.Query, nil
 }
 
-func (llm *OpenAiLLM) GenerateResponse(data interface{}) (string, error) {
+func (llm *OpenAiLLM) GenerateResponse(data interface{}, que string) (string, error) {
 
 	return llm.Response, nil
 }
