@@ -43,7 +43,7 @@ func RandomMoney() int64 {
 
 //RandomEmail generates a random email address
 func RandomEmail(n int) string {
-	mails := []string{"gmail.com", "yahoo.com"}
+	mails := []string{"gmail.com", "yahoo.com", "hotmail.com"}
 	k := len(mails)
 
 	str := RandomStr(n)

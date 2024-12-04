@@ -15,14 +15,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Message defines a structured incoming message format
+// Message defines the format for incoming message from client.
 type Message struct {
 	Type      string          `json:"type"`
 	Payload   json.RawMessage `json:"payload"`
 	Timestamp time.Time       `json:"timestamp"`
 }
 
-// Response defines a structured response message format
+// Response defines the server response format.
 type Response struct {
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
@@ -30,7 +30,7 @@ type Response struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// Advanced WebSocket server
+// WebSocket server specifications.
 type WebSocketServer struct {
 	tokenGenerator token.Generator
 	converter      conv.Converter
@@ -39,7 +39,7 @@ type WebSocketServer struct {
 	mutex          sync.RWMutex
 }
 
-// NewWebSocketServer creates a new WebSocket server
+// NewWebSocketServer creates a new WebSocket server.
 func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocketServer, error) {
 	tokenGenerator, err := token.NewPasetoGenerator(config.TokenSymmetricKey)
 	if err != nil {
@@ -60,7 +60,7 @@ func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocke
 	}, nil
 }
 
-// HandleConnection manages a new WebSocket connection
+// handleConnection manages a new WebSocket connection
 func (srv *WebSocketServer) handleConnection(w http.ResponseWriter, r *http.Request) {
 	conn, err := srv.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -84,20 +84,30 @@ func (srv *WebSocketServer) handleConnection(w http.ResponseWriter, r *http.Requ
 	srv.mutex.Unlock()
 
 	// Start client communication loops
-	go client.readPump()
+	go client.readPump(srv)
 	go client.writePump()
 	go client.processingPump()
 }
 
-// readPump handles incoming WebSocket messages
-func (c *Client) readPump() {
+// readPump handles incoming WebSocket messages.
+func (c *Client) readPump(srv *WebSocketServer) {
 	defer func() {
 		c.conn.Close()
-		close(c.close)
 		if c.dbConn != nil {
-			fmt.Println("closing db conn")
 			c.dbConn.Close()
 		}
+		c.isAlive = false
+
+		c.conn = nil
+		c.dbConn = nil
+		c.dbSchema = nil
+		close(c.close)
+		close(c.send)
+		close(c.receive)
+
+		srv.mutex.Lock()
+		delete(srv.clients, c)
+		srv.mutex.Unlock()
 	}()
 
 	// Set read deadline to detect disconnections
@@ -109,13 +119,36 @@ func (c *Client) readPump() {
 
 	for {
 		var msg Message
-		err := c.conn.ReadJSON(&msg)
+		_, msgData, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket read error: %v", err)
+			if websocket.IsUnexpectedCloseError(err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+				websocket.CloseNormalClosure,
+			) {
+				c.isAlive = false
+				break
 			}
-			c.isAlive = false
-			break
+			log.Printf("WebSocket read error: %v", err)
+			continue
+		}
+
+		err = json.Unmarshal(msgData, &msg)
+		if err != nil {
+			errResponse := Response{
+				Type:      "invalid",
+				Status:    "error",
+				Message:   fmt.Sprintf(`invalid message format: %v`, msg.Type),
+				Timestamp: time.Now(),
+			}
+
+			select {
+			case c.send <- errResponse:
+			default:
+				log.Println("Failed to send error response")
+			}
+
+			continue
 		}
 
 		// Add timestamp to incoming message
@@ -124,14 +157,15 @@ func (c *Client) readPump() {
 	}
 }
 
-// writePump handles outgoing WebSocket messages
+// writePump handles outgoing WebSocket messages.
 func (c *Client) writePump() {
 	ticker := time.NewTicker(50 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		if c.conn != nil {
+			c.conn.Close()
+		}
 		if c.dbConn != nil {
-			fmt.Println("closing db conn")
 			c.dbConn.Close()
 		}
 	}()
@@ -162,12 +196,13 @@ func (c *Client) writePump() {
 	}
 }
 
-// processingPump handles message processing logic
+// processingPump handles message processing logic.
 func (c *Client) processingPump() {
 	defer func() {
-		c.conn.Close()
+		if c.conn != nil {
+			c.conn.Close()
+		}
 		if c.dbConn != nil {
-			fmt.Println("closing db conn")
 			c.dbConn.Close()
 		}
 	}()
@@ -196,7 +231,7 @@ func (srv *WebSocketServer) StartChatServer(config util.Config) error {
 	// http.Handle("/ws", authMiddleware(srv.tokenGenerator)(connFunc))
 	http.Handle("/ws", connFunc)
 
-	log.Printf("WebSocket Server starting on %v", config.WSPort)
+	log.Printf("WebSocket Server starting on port: %v", config.WSPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.WSPort), nil); err != nil {
 		return fmt.Errorf("server error: %v", err)
 	}

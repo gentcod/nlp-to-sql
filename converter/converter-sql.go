@@ -32,9 +32,6 @@ func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema
 		return converter.Response, fmt.Errorf("error evaluating chat with LLM: %v", err)
 	}
 
-
-	fmt.Printf("Query: %+v\n", query)
-
 	if !util.ValidQuery(query) {
 		return query, nil
 	}
@@ -43,8 +40,6 @@ func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema
 	if err != nil {
 		return converter.Response, fmt.Errorf("error getting queried data: %v", err)
 	}
-
-	fmt.Printf("Queried data: %+v\n", data)
 
 	converter.Response, err = llm.GenerateResponse(data, que)
 	if err != nil {

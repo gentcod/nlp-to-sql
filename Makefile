@@ -1,4 +1,10 @@
 current_dir = $(shell pwd)
+run:
+	go run .
+
+build:
+	go build -o bin/nlptosql .
+
 sqlc:
 	docker run --rm -v $(current_dir):/src -w /src sqlc/sqlc generate
 
@@ -23,4 +29,4 @@ mock:
 buildimage:
 	docker build -t nlqtosql:latest .
 
-.PHONY: sqlc createdb dropdb gooseup goosedown test mock buildimage
+.PHONY: run build sqlc createdb dropdb gooseup goosedown test mock buildimage
