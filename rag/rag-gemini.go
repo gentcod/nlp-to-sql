@@ -21,7 +21,7 @@ func NewGeminiLLM(opts LLMOpts) LLM {
 	}
 }
 
-func (llm *GeminiLLM) GenerateQuery() (string, error) {
+func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(llm.Opts.ApiKey))
 	if err != nil {
@@ -42,7 +42,7 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 		},
 		{
 			Parts: []genai.Part{
-				genai.Text("Only SELECT queries or queries to read data are allowed"),
+				genai.Text("Only SELECT queries or queries to read data should be generated"),
 			},
 			Role: "user",
 		},
@@ -84,7 +84,7 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 		},
 	}
 
-	res, err := cs.SendMessage(ctx, genai.Text(llm.Opts.Query))
+	res, err := cs.SendMessage(ctx, genai.Text(que))
 	if err != nil {
 		return llm.Query, nil
 	}
@@ -96,7 +96,7 @@ func (llm *GeminiLLM) GenerateQuery() (string, error) {
 	return llm.Query, nil
 }
 
-func (llm *GeminiLLM) GenerateResponse(data interface{}) (string, error) {
+func (llm *GeminiLLM) GenerateResponse(data interface{}, que string) (string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(llm.Opts.ApiKey))
 	if err != nil {
@@ -122,7 +122,7 @@ func (llm *GeminiLLM) GenerateResponse(data interface{}) (string, error) {
 		},
 		{
 			Parts: []genai.Part{
-				genai.Text(fmt.Sprintf("Use this as context for the data returned: %v", llm.Opts.Query)),
+				genai.Text(fmt.Sprintf("Use this as context for the data returned: %v", que)),
 			},
 			Role: "user",
 		},
