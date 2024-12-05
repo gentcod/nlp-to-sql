@@ -3,14 +3,15 @@ package chat
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	conv "github.com/gentcod/nlp-to-sql/converter"
-	"github.com/gentcod/nlp-to-sql/token"
 	"github.com/gentcod/nlp-to-sql/util"
+	"github.com/gin-gonic/gin"
 
 	"github.com/gorilla/websocket"
 )
@@ -32,20 +33,14 @@ type Response struct {
 
 // WebSocket server specifications.
 type WebSocketServer struct {
-	tokenGenerator token.Generator
-	converter      conv.Converter
-	upgrader       websocket.Upgrader
-	clients        map[*Client]bool
-	mutex          sync.RWMutex
+	converter conv.Converter
+	upgrader  websocket.Upgrader
+	clients   map[*Client]bool
+	mutex     sync.RWMutex
 }
 
 // NewWebSocketServer creates a new WebSocket server.
 func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocketServer, error) {
-	tokenGenerator, err := token.NewPasetoGenerator(config.TokenSymmetricKey)
-	if err != nil {
-		return nil, fmt.Errorf("cannot initialize token generator: %v", err)
-	}
-
 	return &WebSocketServer{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
@@ -54,17 +49,19 @@ func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocke
 				return true
 			},
 		},
-		clients:        make(map[*Client]bool),
-		tokenGenerator: tokenGenerator,
-		converter:      converter,
+		clients:   make(map[*Client]bool),
+		converter: converter,
 	}, nil
 }
 
 // handleConnection manages a new WebSocket connection
-func (srv *WebSocketServer) handleConnection(w http.ResponseWriter, r *http.Request) {
-	conn, err := srv.upgrader.Upgrade(w, r, nil)
+func (srv *WebSocketServer) HandleConnection(c *gin.Context) {
+	conn, err := srv.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Failed to upgrade WebSocket connection",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -119,7 +116,7 @@ func (c *Client) readPump(srv *WebSocketServer) {
 
 	for {
 		var msg Message
-		_, msgData, err := c.conn.ReadMessage()
+		msgType, reader, err := c.conn.NextReader()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err,
 				websocket.CloseGoingAway,
@@ -130,13 +127,19 @@ func (c *Client) readPump(srv *WebSocketServer) {
 				break
 			}
 			log.Printf("WebSocket read error: %v", err)
-			continue
+			break
+		}
+
+		msgData, err := io.ReadAll(reader)
+		if err != nil {
+			log.Printf("Error reading message: %v", err)
+			return
 		}
 
 		err = json.Unmarshal(msgData, &msg)
 		if err != nil {
 			errResponse := Response{
-				Type:      "invalid",
+				Type:      string(rune(msgType)),
 				Status:    "error",
 				Message:   fmt.Sprintf(`invalid message format: %v`, msg.Type),
 				Timestamp: time.Now(),
@@ -223,17 +226,4 @@ func (c *Client) processingPump() {
 			return
 		}
 	}
-}
-
-func (srv *WebSocketServer) StartChatServer(config util.Config) error {
-	connFunc := http.HandlerFunc(srv.handleConnection)
-
-	// http.Handle("/ws", authMiddleware(srv.tokenGenerator)(connFunc))
-	http.Handle("/ws", connFunc)
-
-	log.Printf("WebSocket Server starting on port: %v", config.WSPort)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", config.WSPort), nil); err != nil {
-		return fmt.Errorf("server error: %v", err)
-	}
-	return nil
 }

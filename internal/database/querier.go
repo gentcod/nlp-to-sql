@@ -14,10 +14,11 @@ type Querier interface {
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
-	GetAuth(ctx context.Context, email string) (Auth, error)
-	GetUser(ctx context.Context, username string) (GetUserRow, error)
+	GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error)
+	GetUser(ctx context.Context, authID uuid.UUID) (GetUserRow, error)
 	UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	ValidateAuth(ctx context.Context, email string) (Auth, error)
 }
 
 var _ Querier = (*Queries)(nil)

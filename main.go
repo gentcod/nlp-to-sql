@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"log"
 
-	// "github.com/gentcod/nlp-to-sql/api"
+	"github.com/gentcod/nlp-to-sql/api"
 	"github.com/gentcod/nlp-to-sql/chat"
 	conv "github.com/gentcod/nlp-to-sql/converter"
+	db "github.com/gentcod/nlp-to-sql/internal/database"
 
 	"github.com/gentcod/nlp-to-sql/rag"
 	"github.com/gentcod/nlp-to-sql/util"
@@ -27,7 +28,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	// store := db.NewStore(conn)
+	store := db.NewStore(conn)
 
 	converter := conv.NewSQLConverter(rag.LLMOpts{
 		ApiKey:    config.ApiKey,
@@ -36,29 +37,22 @@ func main() {
 		Model:     config.Model,
 		Temp:      config.Temp,
 	})
-	// runGinServer(config, store)
-	runChatServer(config, converter)
+
+	runGinServer(config, store, converter)
 }
 
-// func runGinServer(config util.Config, store db.Store) {
-// 	server, err := api.NewServer(config, store)
-// 	if err != nil {
-// 		log.Fatal("couldn't initialize the server:", err)
-// 	}
-
-// 	err = server.Start(config.Port)
-// 	if err != nil {
-// 		log.Fatal("couldn't start up server:", err)
-// 	}
-// }
-
-func runChatServer(config util.Config, converter conv.Converter) {
-	server, err := chat.NewWebSocketServer(config, converter)
+func runGinServer(config util.Config, store db.Store, converter conv.Converter) {
+	websocketSrv, err := chat.NewWebSocketServer(config, converter)
 	if err != nil {
 		log.Fatal("couldn't initialize the chat-server:", err)
 	}
 
-	err = server.StartChatServer(config)
+	server, err := api.NewServer(config, store, websocketSrv)
+	if err != nil {
+		log.Fatal("couldn't initialize the server:", err)
+	}
+
+	err = server.Start(config.Port)
 	if err != nil {
 		log.Fatal("couldn't start up server:", err)
 	}
