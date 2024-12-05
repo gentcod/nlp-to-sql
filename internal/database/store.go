@@ -1,14 +1,18 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 	// "log"
 )
 
 // Store provides all functions to execute db SQL queries and transactions
 type Store interface {
 	Querier
+	CreateUserTx(ctx context.Context, arg CreateUserTxParams) (UserTxResult, error)
+	UpdateUserTx(ctx context.Context, arg UpdateUserTxParams) (UserTxResult, error)
 }
 
 // SQLStore provides all functions to execute db SQL queries
@@ -22,6 +26,95 @@ func NewStore(db *sql.DB) Store {
 		db:      db,
 		Queries: New(db),
 	}
+}
+
+// execTx executes a function within a database transaction
+func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) error {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	q := New(tx)
+	err = fn(q)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
+		}
+		return err
+	}
+
+	return tx.Commit()
+}
+
+type CreateUserTxParams struct {
+	CreateAuthParams CreateAuthParams
+	CreateUserParams CreateUserParams
+}
+
+type UserTxResult struct {
+	Auth Auth
+	User User
+}
+
+// CreateUserTx is used to create user record and auth record in the same database transaction
+func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams) (UserTxResult, error) {
+	var result UserTxResult
+
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+
+		result.Auth, err = q.CreateAuth(ctx, arg.CreateAuthParams)
+		if err != nil {
+			return err
+		}
+
+		arg.CreateUserParams.AuthID = result.Auth.ID
+		result.User, err = q.CreateUser(ctx, arg.CreateUserParams)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return result, err
+}
+
+type UpdateUserTxParams struct {
+	UpdateAuthParams UpdateAuthParams
+	UpdateUserParams UpdateUserParams
+}
+
+// UpdateUserTx is used to update either the user record or auth record or both in the same database transaction
+func (store *SQLStore) UpdateUserTx(ctx context.Context, arg UpdateUserTxParams) (UserTxResult, error) {
+	var result UserTxResult
+
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+
+		if arg.UpdateAuthParams.Email.Valid ||
+			arg.UpdateAuthParams.HarshedPassword.Valid ||
+			arg.UpdateAuthParams.PasswordChangedAt.Valid {
+			arg.UpdateAuthParams.UpdatedAt = time.Now()
+			result.Auth, err = q.UpdateAuth(ctx, arg.UpdateAuthParams)
+			if err != nil {
+				return fmt.Errorf("failed to update auth: %w", err)
+			}
+		}
+
+		if arg.UpdateUserParams.Username.Valid || arg.UpdateUserParams.FullName.Valid {
+			arg.UpdateUserParams.UpdatedAt = time.Now()
+			result.User, err = q.UpdateUser(ctx, arg.UpdateUserParams)
+			if err != nil {
+				return fmt.Errorf("failed to update user: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	return result, err
 }
 
 // GetData queries the database to return related data
@@ -68,51 +161,3 @@ func GetData(db *sql.DB, query string) ([]map[string]interface{}, error) {
 
 	return results, nil
 }
-
-// func DebugQuery(db *sql.DB) {
-// 	// Sample query
-// 	// query := `SELECT g.name AS name, u.userId AS userId
-// 	// 	FROM Game g
-// 	// 	JOIN Ticket t ON g.gameId = t.gameId
-// 	// 	JOIN User u ON t.userId = u.userId
-// 	// 	ORDER BY u.createdAt DESC
-// 	// 	LIMIT 1`
-// 	query := `select * from users u where u.username like 'ify%'`
-
-// 	// Execute query
-// 	rows, err := db.Query(query)
-// 	if err != nil {
-// 		log.Fatalf("Query execution failed: %v", err)
-// 	}
-// 	defer rows.Close()
-
-// 	// Get column names
-// 	columns, err := rows.Columns()
-// 	if err != nil {
-// 		log.Fatalf("Failed to fetch columns: %v", err)
-// 	}
-
-// 	// Iterate over rows
-// 	for rows.Next() {
-// 		values := make([]interface{}, len(columns))
-// 		for i := range values {
-// 			values[i] = new(interface{})
-// 		}
-
-// 		if err := rows.Scan(values...); err != nil {
-// 			log.Fatalf("Failed to scan row: %v", err)
-// 		}
-
-// 		// Print row data
-// 		rowData := make(map[string]interface{})
-// 		for i, colName := range columns {
-// 			val := *(values[i].(*interface{}))
-// 			rowData[colName] = val
-// 		}
-// 		fmt.Printf("Row: %v\n", rowData)
-// 	}
-
-// 	if err := rows.Err(); err != nil {
-// 		log.Fatalf("Error iterating over rows: %v", err)
-// 	}
-// }

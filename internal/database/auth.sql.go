@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -39,12 +40,49 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 }
 
 const getAuth = `-- name: GetAuth :one
-SELECT id, email, harshed_password, password_changed_at, created_at, updated_at FROM auth
-WHERE email = $1 LIMIT 1
+SELECT id, email FROM auth
+WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetAuth(ctx context.Context, email string) (Auth, error) {
-	row := q.db.QueryRowContext(ctx, getAuth, email)
+type GetAuthRow struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+}
+
+func (q *Queries) GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuth, id)
+	var i GetAuthRow
+	err := row.Scan(&i.ID, &i.Email)
+	return i, err
+}
+
+const updateAuth = `-- name: UpdateAuth :one
+UPDATE auth 
+SET 
+   email = COALESCE($1, email),
+   harshed_password = COALESCE($2, harshed_password), 
+   password_changed_at = COALESCE($3, password_changed_at),
+   updated_at = $4
+WHERE id = $5
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at
+`
+
+type UpdateAuthParams struct {
+	Email             sql.NullString `json:"email"`
+	HarshedPassword   sql.NullString `json:"harshed_password"`
+	PasswordChangedAt sql.NullTime   `json:"password_changed_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	ID                uuid.UUID      `json:"id"`
+}
+
+func (q *Queries) UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, error) {
+	row := q.db.QueryRowContext(ctx, updateAuth,
+		arg.Email,
+		arg.HarshedPassword,
+		arg.PasswordChangedAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	var i Auth
 	err := row.Scan(
 		&i.ID,
@@ -57,33 +95,13 @@ func (q *Queries) GetAuth(ctx context.Context, email string) (Auth, error) {
 	return i, err
 }
 
-const updateAuth = `-- name: UpdateAuth :one
-UPDATE auth 
-SET 
-   email = COALESCE($1, email),
-   harshed_password = COALESCE($2, harshed_password), 
-   password_changed_at = COALESCE($3, password_changed_at),
-   updated_at = COALESCE($4, updated_at)
-WHERE id = $5
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at
+const validateAuth = `-- name: ValidateAuth :one
+SELECT id, email, harshed_password, password_changed_at, created_at, updated_at FROM auth
+WHERE email = $1 LIMIT 1
 `
 
-type UpdateAuthParams struct {
-	Email             sql.NullString `json:"email"`
-	HarshedPassword   sql.NullString `json:"harshed_password"`
-	PasswordChangedAt sql.NullTime   `json:"password_changed_at"`
-	UpdatedAt         sql.NullTime   `json:"updated_at"`
-	ID                uuid.UUID      `json:"id"`
-}
-
-func (q *Queries) UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, error) {
-	row := q.db.QueryRowContext(ctx, updateAuth,
-		arg.Email,
-		arg.HarshedPassword,
-		arg.PasswordChangedAt,
-		arg.UpdatedAt,
-		arg.ID,
-	)
+func (q *Queries) ValidateAuth(ctx context.Context, email string) (Auth, error) {
+	row := q.db.QueryRowContext(ctx, validateAuth, email)
 	var i Auth
 	err := row.Scan(
 		&i.ID,

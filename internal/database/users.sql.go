@@ -56,7 +56,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 
 const getUser = `-- name: GetUser :one
 SELECT id, username, full_name, created_at, updated_at FROM users
-WHERE username = $1 LIMIT 1
+WHERE auth_id = $1 LIMIT 1
 `
 
 type GetUserRow struct {
@@ -67,8 +67,8 @@ type GetUserRow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (q *Queries) GetUser(ctx context.Context, username string) (GetUserRow, error) {
-	row := q.db.QueryRowContext(ctx, getUser, username)
+func (q *Queries) GetUser(ctx context.Context, authID uuid.UUID) (GetUserRow, error) {
+	row := q.db.QueryRowContext(ctx, getUser, authID)
 	var i GetUserRow
 	err := row.Scan(
 		&i.ID,
@@ -85,7 +85,7 @@ UPDATE users
 SET 
    username = COALESCE($1, username), 
    full_name = COALESCE($2, full_name),
-   updated_at = COALESCE($3, updated_at)
+   updated_at = $3
 WHERE id = $4
 RETURNING id, auth_id, username, full_name, created_at, updated_at
 `
@@ -93,7 +93,7 @@ RETURNING id, auth_id, username, full_name, created_at, updated_at
 type UpdateUserParams struct {
 	Username  sql.NullString `json:"username"`
 	FullName  sql.NullString `json:"full_name"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 	ID        uuid.UUID      `json:"id"`
 }
 

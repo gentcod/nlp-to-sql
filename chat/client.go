@@ -20,7 +20,7 @@ type Client struct {
 	dbConn    *sql.DB
 	dbType    string
 	dbName    string
-	dbSchema map[string]map[string]string
+	dbSchema  map[string]map[string]string
 	send      chan Response
 	receive   chan Message
 	close     chan struct{}
@@ -29,15 +29,15 @@ type Client struct {
 
 func (c *Client) handleDBConn(msg Message) {
 	var dbData struct {
-		DbType   string `json:"db_type"`
-		DbName   string `json:"db_name"`
-		DbUrl string `json:"db_url"`
+		DbType string `json:"db_type"`
+		DbName string `json:"db_name"`
+		DbUrl  string `json:"db_url"`
 	}
 
 	if len(msg.Payload) == 0 {
 		c.send <- Response{
-			Type:   "start_response",
-			Status: "error",
+			Type:      "start_response",
+			Status:    "error",
 			Message:   `{"message": "xinvalid payload length"}`,
 			Timestamp: time.Now(),
 		}
@@ -48,8 +48,8 @@ func (c *Client) handleDBConn(msg Message) {
 		fmt.Printf("Error unmarshalling payload: %v\n", err)
 
 		c.send <- Response{
-			Type:   "start_response",
-			Status: "error",
+			Type:      "start_response",
+			Status:    "error",
 			Message:   (fmt.Sprintf(`possible required missing fields, ensure the correct payload is sent containing: db_type, db_name and db_url, %v`, err)),
 			Timestamp: time.Now(),
 		}
@@ -116,15 +116,15 @@ func (c *Client) handleChat(msg Message) {
 	}
 
 	var chatReq struct {
-		Question   string `json:"question"`
+		Question string `json:"question"`
 	}
 
 	if err := json.Unmarshal(msg.Payload, &chatReq); err != nil {
 		fmt.Printf("Error unmarshalling payload: %v\n", err)
 
 		c.send <- Response{
-			Type:   "start_response",
-			Status: "error",
+			Type:      "start_response",
+			Status:    "error",
 			Message:   (fmt.Sprintf(`possible required missing fields, ensure the correct payload is sent containing: question, %V`, err)),
 			Timestamp: time.Now(),
 		}
