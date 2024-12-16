@@ -25,3 +25,12 @@ func TestValidQuery(t *testing.T) {
 	require.Equal(t, ValidQuery(tDQuery), false)
 	require.Equal(t, ValidQuery(stmt), false)
 }
+
+func TestPasswordHash(t *testing.T) {
+	password := RandomStr(8)
+	hashedPassword, err := HashPassword(password)
+	require.NoError(t, err)
+
+	err = CheckPassword(password, hashedPassword)
+	require.NoError(t, err)
+}

@@ -8,7 +8,6 @@ import (
 
 type Config struct {
 	Port string
-	WSPort string
 	DBUrl string
 	DBName string
 	Environment string
