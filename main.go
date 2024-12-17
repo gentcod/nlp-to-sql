@@ -22,7 +22,7 @@ func main() {
 	}
 
 	// conn, err := sql.Open("mysql", config.DBUrl)
-	conn, err := sql.Open("postgres", config.DBUrl)
+	conn, err := sql.Open(config.DBDriver, config.DBUrl)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
