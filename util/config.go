@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Port string
+	DBDriver string
 	DBUrl string
 	DBName string
 	Environment string
