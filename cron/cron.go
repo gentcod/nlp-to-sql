@@ -71,7 +71,7 @@ func (dbcron *DBCron) InitCron() {
 		err = fmt.Errorf("Error during cleanup: %v", err)
 	}
 
-	_, err = dbcron.c.AddFunc(testschedule, func() {
+	_, err = dbcron.c.AddFunc(cronschedule, func() {
 		dbcron.runCleanup(batchSize)
 	})
 	if err != nil {
