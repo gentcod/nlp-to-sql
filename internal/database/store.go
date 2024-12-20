@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
+
+	"github.com/google/uuid"
 	// "log"
 )
 
@@ -13,6 +16,8 @@ type Store interface {
 	Querier
 	CreateUserTx(ctx context.Context, arg CreateUserTxParams) (UserTxResult, error)
 	UpdateUserTx(ctx context.Context, arg UpdateUserTxParams) (UserTxResult, error)
+	DeleteUserTx(ctx context.Context, authID uuid.UUID, userID uuid.UUID) error
+	DeleteExpRestrictedRecords(ctx context.Context, batchSize int) (totalDeleted int, err error)
 }
 
 // SQLStore provides all functions to execute db SQL queries
@@ -115,6 +120,61 @@ func (store *SQLStore) UpdateUserTx(ctx context.Context, arg UpdateUserTxParams)
 	})
 
 	return result, err
+}
+
+// UpdateUserTx is used to update either the user record or auth record or both in the same database transaction
+func (store *SQLStore) DeleteUserTx(ctx context.Context, authID uuid.UUID, userID uuid.UUID) error {
+	err := store.execTx(ctx, func(q *Queries) error {
+		var err error
+
+		err = q.DeleteAuth(ctx, authID)
+		if err != nil {
+			return fmt.Errorf("failed to restrict auth: %w", err)
+		}
+
+		err = q.DeleteUser(ctx, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete user: %w", err)
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+// DeleteExpRestrictedRecords is used for a cron job to delete auth records
+// that have been persisted after user account deletion
+func (store *SQLStore) DeleteExpRestrictedRecords(ctx context.Context, batchSize int) (totalDeleted int, err error) {
+	totalRecords, err := store.GetRestricted(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("error counting records: %v", err)
+	}
+
+	if totalRecords < 0 {
+		return
+	}
+
+	log.Printf("Found %d record(s) to delete", totalRecords)
+
+	for totalDeleted < int(totalRecords) {
+		result, err := store.DeleteAuthCron(ctx, int32(batchSize))
+		if err != nil {
+			return totalDeleted, fmt.Errorf("error deleting batch: %v", err)
+		}
+
+		totalDeleted += len(result)
+		log.Printf("Deleted batch of %d record(s). Total: %d/%d",
+			len(result), totalDeleted, totalRecords)
+
+		if len(result) < batchSize {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return totalDeleted, nil
 }
 
 // GetData queries the database to return related data

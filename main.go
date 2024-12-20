@@ -7,6 +7,7 @@ import (
 	"github.com/gentcod/nlp-to-sql/api"
 	"github.com/gentcod/nlp-to-sql/chat"
 	conv "github.com/gentcod/nlp-to-sql/converter"
+	"github.com/gentcod/nlp-to-sql/cron"
 	db "github.com/gentcod/nlp-to-sql/internal/database"
 
 	"github.com/gentcod/nlp-to-sql/rag"
@@ -37,6 +38,13 @@ func main() {
 		Model:     config.Model,
 		Temp:      config.Temp,
 	})
+
+	dbcron := cron.NewDBCron(store, cron.CronConfig{
+		BatchSize: config.CronBatchSize,
+		LogPath: config.LogPath,
+	})
+
+	dbcron.InitCron()
 
 	runGinServer(config, store, converter)
 }

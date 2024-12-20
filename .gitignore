@@ -1,3 +1,5 @@
-*.env
+.env
 ref*
 bin/
+logs/
+trial*

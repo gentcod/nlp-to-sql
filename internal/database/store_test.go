@@ -19,7 +19,7 @@ func createRandomUserTx(t *testing.T) UserTxResult {
 	arg := CreateUserTxParams{
 		CreateAuthParams: CreateAuthParams{
 			ID:              uuid.New(),
-			Email: util.RandomEmail(10),
+			Email:           util.RandomEmail(10),
 			HarshedPassword: harshedPassword,
 		},
 		CreateUserParams: CreateUserParams{
@@ -106,6 +106,23 @@ func TestUpdateUserTx(t *testing.T) {
 	require.Equal(t, arg.UpdateUserParams.FullName.String, result.User.FullName)
 	require.Equal(t, userTx.User.CreatedAt, result.User.CreatedAt)
 	require.NotZero(t, result.User.UpdatedAt)
+}
+
+func TestDeleteUserTx(t *testing.T) {
+	store := NewStore(testDB)
+
+	userTx := createRandomUserTx(t)
+
+	err := store.DeleteUserTx(context.Background(), userTx.Auth.ID, userTx.User.ID)
+	require.NoError(t, err)
+
+	user, err := store.GetUser(context.Background(), userTx.User.AuthID)
+	require.Error(t, err)
+	require.Empty(t, user)
+
+	auth, err := store.ValidateAuth(context.Background(), userTx.Auth.Email)
+	require.NoError(t, err)
+	require.True(t, auth.Deleted)
 }
 
 func TestGetData(t *testing.T) {
