@@ -17,6 +17,8 @@ type Auth struct {
 	PasswordChangedAt time.Time `json:"password_changed_at"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	Restricted        bool      `json:"restricted"`
+	Deleted           bool      `json:"deleted"`
 }
 
 type User struct {

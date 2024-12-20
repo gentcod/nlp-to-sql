@@ -7,19 +7,22 @@ import (
 )
 
 type Config struct {
-	Port string
-	DBDriver string
-	DBUrl string
-	DBName string
-	Environment string
-	TokenSymmetricKey string
-	TokenSecretKey string
+	Port                string
+	DBDriver            string
+	DBUrl               string
+	DBName              string
+	Environment         string
+	TokenSymmetricKey   string
+	TokenSecretKey      string
 	AccessTokenDuration time.Duration
-	ApiKey string
-	OrgId string
-	ProjectId string
-	Model string
-	Temp string
+	ApiKey              string
+	OrgId               string
+	ProjectId           string
+	Model               string
+	Temp                string
+	CronSchedule        string
+	CronBatchSize       string
+	LogPath             string
 }
 
 func LoadConfig(path string) (config Config, err error) {

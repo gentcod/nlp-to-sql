@@ -16,7 +16,7 @@ import (
 const createAuth = `-- name: CreateAuth :one
 INSERT INTO auth (id, email, harshed_password)
 VALUES ($1, $2, $3)
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
 `
 
 type CreateAuthParams struct {
@@ -35,8 +35,63 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Restricted,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const deleteAuth = `-- name: DeleteAuth :exec
+UPDATE auth
+SET deleted = TRUE
+WHERE id = $1
+`
+
+func (q *Queries) DeleteAuth(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAuth, id)
+	return err
+}
+
+const deleteAuthCron = `-- name: DeleteAuthCron :many
+DELETE FROM auth 
+WHERE id IN (
+   SELECT id FROM
+   auth WHERE deleted = TRUE
+   LIMIT $1
+)
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
+`
+
+func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAuthCron, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Auth{}
+	for rows.Next() {
+		var i Auth
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.HarshedPassword,
+			&i.PasswordChangedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Restricted,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAuth = `-- name: GetAuth :one
@@ -56,6 +111,30 @@ func (q *Queries) GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error)
 	return i, err
 }
 
+const getRestricted = `-- name: GetRestricted :one
+SELECT COUNT(*) 
+   FROM auth 
+WHERE deleted = TRUE
+`
+
+func (q *Queries) GetRestricted(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getRestricted)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const restrictAuth = `-- name: RestrictAuth :exec
+UPDATE auth
+SET restricted = TRUE
+WHERE id = $1
+`
+
+func (q *Queries) RestrictAuth(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, restrictAuth, id)
+	return err
+}
+
 const updateAuth = `-- name: UpdateAuth :one
 UPDATE auth 
 SET 
@@ -64,7 +143,7 @@ SET
    password_changed_at = COALESCE($3, password_changed_at),
    updated_at = $4
 WHERE id = $5
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
 `
 
 type UpdateAuthParams struct {
@@ -91,12 +170,14 @@ func (q *Queries) UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, e
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Restricted,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const validateAuth = `-- name: ValidateAuth :one
-SELECT id, email, harshed_password, password_changed_at, created_at, updated_at FROM auth
+SELECT id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted FROM auth
 WHERE email = $1 LIMIT 1
 `
 
@@ -110,6 +191,8 @@ func (q *Queries) ValidateAuth(ctx context.Context, email string) (Auth, error) 
 		&i.PasswordChangedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Restricted,
+		&i.Deleted,
 	)
 	return i, err
 }

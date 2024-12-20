@@ -20,3 +20,27 @@ SET
    updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: RestrictAuth :exec
+UPDATE auth
+SET restricted = TRUE
+WHERE id = $1;
+
+-- name: DeleteAuth :exec
+UPDATE auth
+SET deleted = TRUE
+WHERE id = $1;
+
+-- name: GetRestricted :one
+SELECT COUNT(*) 
+   FROM auth 
+WHERE deleted = TRUE;
+
+-- name: DeleteAuthCron :many
+DELETE FROM auth 
+WHERE id IN (
+   SELECT id FROM
+   auth WHERE deleted = TRUE
+   LIMIT $1
+)
+RETURNING *;
