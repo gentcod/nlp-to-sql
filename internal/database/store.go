@@ -14,7 +14,7 @@ import (
 // Store provides all functions to execute db SQL queries and transactions
 type Store interface {
 	Querier
-	CreateUserTx(ctx context.Context, arg CreateUserTxParams) (UserTxResult, error)
+	CreateUserTx(ctx context.Context, arg CreateUserTxParams, role RoleType) (UserTxResult, error)
 	UpdateUserTx(ctx context.Context, arg UpdateUserTxParams) (UserTxResult, error)
 	DeleteUserTx(ctx context.Context, authID uuid.UUID, userID uuid.UUID) error
 	DeleteExpRestrictedRecords(ctx context.Context, batchSize int) (totalDeleted int, err error)
@@ -63,16 +63,31 @@ type UserTxResult struct {
 }
 
 // CreateUserTx is used to create user record and auth record in the same database transaction
-func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams) (UserTxResult, error) {
+func (store *SQLStore) CreateUserTx(ctx context.Context, arg CreateUserTxParams, role RoleType) (UserTxResult, error) {
 	var result UserTxResult
 
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
+		var auth Auth
 
-		result.Auth, err = q.CreateAuth(ctx, arg.CreateAuthParams)
-		if err != nil {
-			return err
+		if role == RoleTypeUser {
+			auth, err = q.CreateAuth(ctx, arg.CreateAuthParams)
+			if err != nil {
+				return err
+			}
+		} else {
+			authArg := CreateAdminAuthParams{
+				ID: arg.CreateAuthParams.ID,
+				Email: arg.CreateAuthParams.Email,
+				HarshedPassword: arg.CreateAuthParams.HarshedPassword,
+			}
+			auth, err = q.CreateAdminAuth(ctx, authArg)
+			if err != nil {
+				return err
+			}
 		}
+
+		result.Auth = auth
 
 		arg.CreateUserParams.AuthID = result.Auth.ID
 		result.User, err = q.CreateUser(ctx, arg.CreateUserParams)
@@ -146,7 +161,7 @@ func (store *SQLStore) DeleteUserTx(ctx context.Context, authID uuid.UUID, userI
 // DeleteExpRestrictedRecords is used for a cron job to delete auth records
 // that have been persisted after user account deletion
 func (store *SQLStore) DeleteExpRestrictedRecords(ctx context.Context, batchSize int) (totalDeleted int, err error) {
-	totalRecords, err := store.GetRestricted(ctx)
+	totalRecords, err := store.GetDeleted(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("error counting records: %v", err)
 	}

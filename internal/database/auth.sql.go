@@ -13,10 +13,39 @@ import (
 	"github.com/google/uuid"
 )
 
+const createAdminAuth = `-- name: CreateAdminAuth :one
+INSERT INTO auth (id, email, harshed_password, role)
+VALUES ($1, $2, $3, "admin")
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
+`
+
+type CreateAdminAuthParams struct {
+	ID              uuid.UUID `json:"id"`
+	Email           string    `json:"email"`
+	HarshedPassword string    `json:"harshed_password"`
+}
+
+func (q *Queries) CreateAdminAuth(ctx context.Context, arg CreateAdminAuthParams) (Auth, error) {
+	row := q.db.QueryRowContext(ctx, createAdminAuth, arg.ID, arg.Email, arg.HarshedPassword)
+	var i Auth
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.HarshedPassword,
+		&i.PasswordChangedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Restricted,
+		&i.Deleted,
+		&i.Role,
+	)
+	return i, err
+}
+
 const createAuth = `-- name: CreateAuth :one
 INSERT INTO auth (id, email, harshed_password)
 VALUES ($1, $2, $3)
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
 `
 
 type CreateAuthParams struct {
@@ -37,6 +66,7 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 		&i.UpdatedAt,
 		&i.Restricted,
 		&i.Deleted,
+		&i.Role,
 	)
 	return i, err
 }
@@ -59,7 +89,7 @@ WHERE id IN (
    auth WHERE deleted = TRUE
    LIMIT $1
 )
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
 `
 
 func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, error) {
@@ -80,6 +110,7 @@ func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, erro
 			&i.UpdatedAt,
 			&i.Restricted,
 			&i.Deleted,
+			&i.Role,
 		); err != nil {
 			return nil, err
 		}
@@ -95,30 +126,39 @@ func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, erro
 }
 
 const getAuth = `-- name: GetAuth :one
-SELECT id, email FROM auth
+SELECT id, email, role, restricted, deleted FROM auth
 WHERE id = $1 LIMIT 1
 `
 
 type GetAuthRow struct {
-	ID    uuid.UUID `json:"id"`
-	Email string    `json:"email"`
+	ID         uuid.UUID    `json:"id"`
+	Email      string       `json:"email"`
+	Role       NullRoleType `json:"role"`
+	Restricted bool         `json:"restricted"`
+	Deleted    bool         `json:"deleted"`
 }
 
 func (q *Queries) GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuth, id)
 	var i GetAuthRow
-	err := row.Scan(&i.ID, &i.Email)
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Role,
+		&i.Restricted,
+		&i.Deleted,
+	)
 	return i, err
 }
 
-const getRestricted = `-- name: GetRestricted :one
+const getDeleted = `-- name: GetDeleted :one
 SELECT COUNT(*) 
    FROM auth 
 WHERE deleted = TRUE
 `
 
-func (q *Queries) GetRestricted(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getRestricted)
+func (q *Queries) GetDeleted(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getDeleted)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -143,7 +183,7 @@ SET
    password_changed_at = COALESCE($3, password_changed_at),
    updated_at = $4
 WHERE id = $5
-RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted
+RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
 `
 
 type UpdateAuthParams struct {
@@ -172,12 +212,13 @@ func (q *Queries) UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, e
 		&i.UpdatedAt,
 		&i.Restricted,
 		&i.Deleted,
+		&i.Role,
 	)
 	return i, err
 }
 
 const validateAuth = `-- name: ValidateAuth :one
-SELECT id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted FROM auth
+SELECT id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role FROM auth
 WHERE email = $1 LIMIT 1
 `
 
@@ -193,6 +234,7 @@ func (q *Queries) ValidateAuth(ctx context.Context, email string) (Auth, error) 
 		&i.UpdatedAt,
 		&i.Restricted,
 		&i.Deleted,
+		&i.Role,
 	)
 	return i, err
 }

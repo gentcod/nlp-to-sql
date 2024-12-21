@@ -15,7 +15,7 @@ func TestDBCron(t *testing.T) {
 	store := NewStore(testDB)
 
 	for i := 0; i < 4; i++ {
-		userTx := createRandomUserTx(t)
+		userTx := createRandomUserTx(t, RoleTypeUser)
 
 		err := store.DeleteUserTx(context.Background(), userTx.Auth.ID, userTx.User.ID)
 		require.NoError(t, err)

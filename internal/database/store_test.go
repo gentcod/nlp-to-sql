@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomUserTx(t *testing.T) UserTxResult {
+func createRandomUserTx(t *testing.T, role RoleType) UserTxResult {
 	store := NewStore(testDB)
 
 	harshedPassword, err := util.HashPassword(util.RandomStr(8))
@@ -29,7 +29,7 @@ func createRandomUserTx(t *testing.T) UserTxResult {
 		},
 	}
 
-	result, err := store.CreateUserTx(context.Background(), arg)
+	result, err := store.CreateUserTx(context.Background(), arg, role)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 
@@ -38,6 +38,12 @@ func createRandomUserTx(t *testing.T) UserTxResult {
 	require.Equal(t, arg.CreateAuthParams.HarshedPassword, result.Auth.HarshedPassword)
 	require.True(t, result.Auth.PasswordChangedAt.IsZero())
 	require.NotZero(t, result.Auth.CreatedAt)
+
+	if role == RoleTypeUser {
+		require.Equal(t, RoleTypeUser, result.Auth.Role.RoleType)
+	} else {
+		require.Equal(t, RoleTypeAdmin, result.Auth.Role.RoleType)
+	}
 
 	require.NotZero(t, result.User.ID)
 	require.Equal(t, arg.CreateAuthParams.ID, result.User.AuthID)
@@ -50,13 +56,17 @@ func createRandomUserTx(t *testing.T) UserTxResult {
 }
 
 func TestCreateUserTx(t *testing.T) {
-	createRandomUserTx(t)
+	createRandomUserTx(t, RoleTypeUser)
+}
+
+func TestCreateAdminUserTx(t *testing.T) {
+	createRandomUserTx(t, RoleTypeAdmin)
 }
 
 func TestUpdateUserTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	userTx := createRandomUserTx(t)
+	userTx := createRandomUserTx(t, RoleTypeUser)
 
 	email := util.RandomEmail(10)
 	username := util.RandomUser()
@@ -111,7 +121,7 @@ func TestUpdateUserTx(t *testing.T) {
 func TestDeleteUserTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	userTx := createRandomUserTx(t)
+	userTx := createRandomUserTx(t, RoleTypeUser)
 
 	err := store.DeleteUserTx(context.Background(), userTx.Auth.ID, userTx.User.ID)
 	require.NoError(t, err)

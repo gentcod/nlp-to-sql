@@ -10,13 +10,12 @@ import (
 func TestGetUser(t *testing.T) {
 	store := NewStore(testDB)
 
-	userTx := createRandomUserTx(t)
+	userTx := createRandomUserTx(t, RoleTypeUser)
 
 	result, err := store.GetUser(context.Background(), userTx.Auth.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 
-	require.Equal(t, userTx.User.ID, result.ID)
 	require.Equal(t, userTx.User.ID, result.ID)
 	require.Equal(t, userTx.User.Username, result.Username)
 	require.Equal(t, userTx.User.FullName, result.FullName)

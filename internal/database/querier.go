@@ -11,13 +11,14 @@ import (
 )
 
 type Querier interface {
+	CreateAdminAuth(ctx context.Context, arg CreateAdminAuthParams) (Auth, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAuth(ctx context.Context, id uuid.UUID) error
 	DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error)
-	GetRestricted(ctx context.Context) (int64, error)
+	GetDeleted(ctx context.Context) (int64, error)
 	GetUser(ctx context.Context, authID uuid.UUID) (GetUserRow, error)
 	RestrictAuth(ctx context.Context, id uuid.UUID) error
 	UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, error)
