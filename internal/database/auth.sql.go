@@ -15,7 +15,7 @@ import (
 
 const createAdminAuth = `-- name: CreateAdminAuth :one
 INSERT INTO auth (id, email, harshed_password, role)
-VALUES ($1, $2, $3, "admin")
+VALUES ($1, $2, $3, 'admin')
 RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
 `
 
@@ -73,27 +73,34 @@ func (q *Queries) CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, e
 
 const deleteAuth = `-- name: DeleteAuth :exec
 UPDATE auth
-SET deleted = TRUE
+SET deleted = TRUE, updated_at = $2
 WHERE id = $1
 `
 
-func (q *Queries) DeleteAuth(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAuth, id)
+type DeleteAuthParams struct {
+	ID        uuid.UUID `json:"id"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) DeleteAuth(ctx context.Context, arg DeleteAuthParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAuth, arg.ID, arg.UpdatedAt)
 	return err
 }
 
-const deleteAuthCron = `-- name: DeleteAuthCron :many
+const deleteUserAuthCron = `-- name: DeleteUserAuthCron :many
 DELETE FROM auth 
 WHERE id IN (
    SELECT id FROM
-   auth WHERE deleted = TRUE
+   auth WHERE role = 'user'
+   and deleted = TRUE
+   and updated_at < NOW() - INTERVAL '30 days'
    LIMIT $1
 )
 RETURNING id, email, harshed_password, password_changed_at, created_at, updated_at, restricted, deleted, role
 `
 
-func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, error) {
-	rows, err := q.db.QueryContext(ctx, deleteAuthCron, limit)
+func (q *Queries) DeleteUserAuthCron(ctx context.Context, limit int32) ([]Auth, error) {
+	rows, err := q.db.QueryContext(ctx, deleteUserAuthCron, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +133,7 @@ func (q *Queries) DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, erro
 }
 
 const getAuth = `-- name: GetAuth :one
-SELECT id, email, role, restricted, deleted FROM auth
+SELECT id, email, role, restricted, deleted, created_at, updated_at FROM auth
 WHERE id = $1 LIMIT 1
 `
 
@@ -136,6 +143,8 @@ type GetAuthRow struct {
 	Role       NullRoleType `json:"role"`
 	Restricted bool         `json:"restricted"`
 	Deleted    bool         `json:"deleted"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
 }
 
 func (q *Queries) GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error) {
@@ -147,18 +156,22 @@ func (q *Queries) GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error)
 		&i.Role,
 		&i.Restricted,
 		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getDeleted = `-- name: GetDeleted :one
+const getDeletedUsers = `-- name: GetDeletedUsers :one
 SELECT COUNT(*) 
    FROM auth 
-WHERE deleted = TRUE
+WHERE role = 'user' 
+   and deleted = TRUE
+   AND updated_at < NOW() - INTERVAL '30 days'
 `
 
-func (q *Queries) GetDeleted(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getDeleted)
+func (q *Queries) GetDeletedUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getDeletedUsers)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -166,12 +179,17 @@ func (q *Queries) GetDeleted(ctx context.Context) (int64, error) {
 
 const restrictAuth = `-- name: RestrictAuth :exec
 UPDATE auth
-SET restricted = TRUE
+SET restricted = TRUE, updated_at = $2
 WHERE id = $1
 `
 
-func (q *Queries) RestrictAuth(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, restrictAuth, id)
+type RestrictAuthParams struct {
+	ID        uuid.UUID `json:"id"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) RestrictAuth(ctx context.Context, arg RestrictAuthParams) error {
+	_, err := q.db.ExecContext(ctx, restrictAuth, arg.ID, arg.UpdatedAt)
 	return err
 }
 

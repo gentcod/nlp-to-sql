@@ -14,7 +14,6 @@ import (
 	"github.com/lib/pq"
 )
 
-// TODO: Implement password confirmation when updating account and password auth for getting account
 func (server *Server) createAdminUser(ctx *gin.Context) {
 	var req createUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -28,20 +27,20 @@ func (server *Server) createAdminUser(ctx *gin.Context) {
 		return
 	}
 
-	arg := db.CreateUserTxParams{
-		CreateAuthParams: db.CreateAuthParams{
+	arg := db.CreateAdminTxParams{
+		CreateAdminAuthParams: db.CreateAdminAuthParams{
 			ID:              uuid.New(),
 			Email:           req.Email,
 			HarshedPassword: harshedPassword,
 		},
-		CreateUserParams: db.CreateUserParams{
+		CreateAdminParams: db.CreateAdminParams{
 			ID:       uuid.New(),
 			Username: req.Username,
 			FullName: req.FullName,
 		},
 	}
 
-	usertx, err := server.store.CreateUserTx(ctx, arg, db.RoleTypeAdmin)
+	adminTx, err := server.store.CreateAdminTx(ctx, arg)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
@@ -54,9 +53,9 @@ func (server *Server) createAdminUser(ctx *gin.Context) {
 		return
 	}
 
-	userProfile := getUserProfile(usertx)
+	profile := getAminrProfile(adminTx)
 
-	ctx.JSON(http.StatusOK, userProfile)
+	ctx.JSON(http.StatusOK, apiServerResponse("admin account created sucessfully", profile))
 }
 
 func (server *Server) updateAdminUser(ctx *gin.Context) {
@@ -73,7 +72,7 @@ func (server *Server) updateAdminUser(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, auth.ID)
+	admin, err := server.store.GetAdmin(ctx, auth.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
@@ -88,7 +87,7 @@ func (server *Server) updateAdminUser(ctx *gin.Context) {
 		}
 	}
 
-	txArg := db.UpdateUserTxParams{
+	txArg := db.UpdateAdminTxParams{
 		UpdateAuthParams: db.UpdateAuthParams{
 			ID: auth.ID,
 			Email: sql.NullString{
@@ -100,8 +99,8 @@ func (server *Server) updateAdminUser(ctx *gin.Context) {
 				Valid:  newHarshedPassword != "",
 			},
 		},
-		UpdateUserParams: db.UpdateUserParams{
-			ID: user.ID,
+		UpdateAdminParams: db.UpdateAdminParams{
+			ID: admin.ID,
 			Username: sql.NullString{
 				String: req.Username,
 				Valid:  req.Username != "",
@@ -118,14 +117,14 @@ func (server *Server) updateAdminUser(ctx *gin.Context) {
 		Valid: newHarshedPassword != "",
 	}
 
-	updateUserTx, err := server.store.UpdateUserTx(ctx, txArg)
+	updateTx, err := server.store.UpdateAdminTx(ctx, txArg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
 	}
 
-	userProfile := getUserProfile(updateUserTx)
-	ctx.JSON(http.StatusOK, userProfile)
+	profile := getAminrProfile(updateTx)
+	ctx.JSON(http.StatusOK, apiServerResponse("admin account updated sucessfully", profile))
 }
 
 func (server *Server) loginAdminUser(ctx *gin.Context) {
@@ -135,18 +134,18 @@ func (server *Server) loginAdminUser(ctx *gin.Context) {
 		return
 	}
 
-	auth, valid := server.validateUser(ctx, req.Email, req.Password)
+	auth, valid := server.validateAdminUser(ctx, req.Email, req.Password)
 	if !valid {
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, auth.ID)
+	user, err := server.store.GetAdmin(ctx, auth.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
 	}
 
-	accessToken, accessPayload, err := server.tokenGenerator.CreateToken(user.Username, auth.ID, server.config.AccessTokenDuration)
+	accessToken, accessPayload, err := server.adminTokenGenerator.CreateToken(user.Username, auth.ID, server.config.AccessTokenDuration)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
@@ -164,7 +163,7 @@ func (server *Server) loginAdminUser(ctx *gin.Context) {
 		},
 	}
 
-	ctx.JSON(http.StatusOK, resp)
+	ctx.JSON(http.StatusOK, apiServerResponse("Account login sucessfully", resp))
 }
 
 func (server *Server) validateAdminUser(ctx *gin.Context, email string, password string) (db.Auth, bool) {
@@ -204,4 +203,14 @@ func (server *Server) validateAdminUser(ctx *gin.Context, email string, password
 	}
 
 	return auth, true
+}
+
+func getAminrProfile(tx db.AdminTxResult) UserProfile {
+	return UserProfile{
+		Username:          tx.Admin.Username,
+		FullName:          tx.Admin.FullName,
+		Email:             tx.Auth.Email,
+		CreatedAt:         tx.Admin.CreatedAt,
+		PasswordChangedAt: tx.Auth.PasswordChangedAt,
+	}
 }

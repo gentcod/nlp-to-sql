@@ -54,6 +54,15 @@ func (ns NullRoleType) Value() (driver.Value, error) {
 	return string(ns.RoleType), nil
 }
 
+type Admin struct {
+	ID        uuid.UUID `json:"id"`
+	AuthID    uuid.UUID `json:"auth_id"`
+	Username  string    `json:"username"`
+	FullName  string    `json:"full_name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Auth struct {
 	ID                uuid.UUID    `json:"id"`
 	Email             string       `json:"email"`

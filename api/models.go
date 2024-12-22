@@ -40,3 +40,7 @@ type UserProfile struct {
 	CreatedAt         time.Time `json:"created_at"`
 	PasswordChangedAt time.Time `json:"password_changed_at"`
 }
+
+type adminModUserRequest struct {
+	userId    string `query:"userId" binding:"required"`
+}

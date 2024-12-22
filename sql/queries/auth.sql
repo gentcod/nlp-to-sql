@@ -5,7 +5,7 @@ RETURNING *;
 
 -- name: CreateAdminAuth :one
 INSERT INTO auth (id, email, harshed_password, role)
-VALUES ($1, $2, $3, "admin")
+VALUES ($1, $2, $3, 'admin')
 RETURNING *;
 
 -- name: ValidateAuth :one
@@ -13,7 +13,7 @@ SELECT * FROM auth
 WHERE email = $1 LIMIT 1;
 
 -- name: GetAuth :one
-SELECT id, email, role, restricted, deleted FROM auth
+SELECT id, email, role, restricted, deleted, created_at, updated_at FROM auth
 WHERE id = $1 LIMIT 1;
 
 -- name: UpdateAuth :one
@@ -28,24 +28,29 @@ RETURNING *;
 
 -- name: RestrictAuth :exec
 UPDATE auth
-SET restricted = TRUE
+SET restricted = TRUE, updated_at = $2
 WHERE id = $1;
 
 -- name: DeleteAuth :exec
 UPDATE auth
-SET deleted = TRUE
+SET deleted = TRUE, updated_at = $2
 WHERE id = $1;
 
--- name: GetDeleted :one
+-- name: GetDeletedUsers :one
 SELECT COUNT(*) 
    FROM auth 
-WHERE deleted = TRUE;
+WHERE role = 'user' 
+   and deleted = TRUE
+   AND updated_at < NOW() - INTERVAL '30 days'
+;
 
--- name: DeleteAuthCron :many
+-- name: DeleteUserAuthCron :many
 DELETE FROM auth 
 WHERE id IN (
    SELECT id FROM
-   auth WHERE deleted = TRUE
+   auth WHERE role = 'user'
+   and deleted = TRUE
+   and updated_at < NOW() - INTERVAL '30 days'
    LIMIT $1
 )
 RETURNING *;

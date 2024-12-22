@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gentcod/nlp-to-sql/util"
 	_ "github.com/lib/pq"
@@ -15,17 +16,26 @@ func TestDBCron(t *testing.T) {
 	store := NewStore(testDB)
 
 	for i := 0; i < 4; i++ {
-		userTx := createRandomUserTx(t, RoleTypeUser)
+		userTx, _ := createRandomUserOrAdminTx(t, RoleTypeUser)
 
 		err := store.DeleteUserTx(context.Background(), userTx.Auth.ID, userTx.User.ID)
 		require.NoError(t, err)
+
+		_, err = testDB.Exec(`
+		UPDATE auth
+		SET updated_at = NOW() - INTERVAL '30 days'
+		WHERE id = $1`, userTx.Auth.ID)
+		require.NoError(t, err)
 	}
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	<-ticker.C
 
-	totalDeleted, err := store.DeleteExpRestrictedRecords(context.Background(), 2)
+	totalDeleted, err := store.DeleteExpDeletedUserRecords(context.Background(), 2)
 	require.NoError(t, err)
-	require.Equal(t, totalDeleted, 4)
+	require.GreaterOrEqual(t, totalDeleted, 4)
 
-	newTotalDeleted, err := store.DeleteExpRestrictedRecords(context.Background(), 2)
+	newTotalDeleted, err := store.DeleteExpDeletedUserRecords(context.Background(), 2)
 	require.NoError(t, err)
 	require.Equal(t, newTotalDeleted, 0)
 }

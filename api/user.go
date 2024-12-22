@@ -41,7 +41,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		},
 	}
 
-	usertx, err := server.store.CreateUserTx(ctx, arg, db.RoleTypeUser)
+	usertx, err := server.store.CreateUserTx(ctx, arg)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
@@ -54,9 +54,9 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	userProfile := getUserProfile(usertx)
+	profile := getUserProfile(usertx)
 
-	ctx.JSON(http.StatusOK, userProfile)
+	ctx.JSON(http.StatusOK, apiServerResponse("admin account created sucessfully", profile))
 }
 
 func (server *Server) updateUser(ctx *gin.Context) {
@@ -118,14 +118,14 @@ func (server *Server) updateUser(ctx *gin.Context) {
 		Valid: newHarshedPassword != "",
 	}
 
-	updateUserTx, err := server.store.UpdateUserTx(ctx, txArg)
+	updateTx, err := server.store.UpdateUserTx(ctx, txArg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
 	}
 
-	userProfile := getUserProfile(updateUserTx)
-	ctx.JSON(http.StatusOK, userProfile)
+	profile := getUserProfile(updateTx)
+	ctx.JSON(http.StatusOK, apiServerResponse("user account updated sucessfully", profile))
 }
 
 func (server *Server) loginUser(ctx *gin.Context) {
@@ -164,7 +164,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 		},
 	}
 
-	ctx.JSON(http.StatusOK, resp)
+	ctx.JSON(http.StatusOK, apiServerResponse("Account login sucessfully", resp))
 }
 
 func (server *Server) validateUser(ctx *gin.Context, email string, password string) (db.Auth, bool) {
