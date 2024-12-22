@@ -11,15 +11,20 @@ import (
 )
 
 type Querier interface {
+	CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin, error)
+	CreateAdminAuth(ctx context.Context, arg CreateAdminAuthParams) (Auth, error)
 	CreateAuth(ctx context.Context, arg CreateAuthParams) (Auth, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeleteAuth(ctx context.Context, id uuid.UUID) error
-	DeleteAuthCron(ctx context.Context, limit int32) ([]Auth, error)
+	DeleteAdmin(ctx context.Context, id uuid.UUID) error
+	DeleteAuth(ctx context.Context, arg DeleteAuthParams) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error
+	DeleteUserAuthCron(ctx context.Context, limit int32) ([]Auth, error)
+	GetAdmin(ctx context.Context, authID uuid.UUID) (GetAdminRow, error)
 	GetAuth(ctx context.Context, id uuid.UUID) (GetAuthRow, error)
-	GetRestricted(ctx context.Context) (int64, error)
+	GetDeletedUsers(ctx context.Context) (int64, error)
 	GetUser(ctx context.Context, authID uuid.UUID) (GetUserRow, error)
-	RestrictAuth(ctx context.Context, id uuid.UUID) error
+	RestrictAuth(ctx context.Context, arg RestrictAuthParams) error
+	UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin, error)
 	UpdateAuth(ctx context.Context, arg UpdateAuthParams) (Auth, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	ValidateAuth(ctx context.Context, email string) (Auth, error)

@@ -15,6 +15,7 @@ type Server struct {
 	config         util.Config
 	store          db.Store
 	tokenGenerator token.Generator
+	adminTokenGenerator token.Generator
 	websocket      *chat.WebSocketServer
 	router         *gin.Engine
 }
@@ -26,10 +27,16 @@ func NewServer(config util.Config, store db.Store, websocket *chat.WebSocketServ
 		return nil, fmt.Errorf("cannot initialize token generator: %v", err)
 	}
 
+	adminTokenGenerator, err := token.NewPasetoGenerator(config.TokenSymmetricKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize token generator: %v", err)
+	}
+
 	server := &Server{
 		config:         config,
 		store:          store,
 		tokenGenerator: tokenGenerator,
+		adminTokenGenerator: adminTokenGenerator,
 		websocket:      websocket,
 	}
 
@@ -46,9 +53,15 @@ func (server *Server) setupRouter() {
 	v1Routes.POST("/user/signup", server.createUser)
 	v1Routes.POST("/user/login", server.loginUser)
 
-	authRoutes := v1Routes.Group("/").Use((authMiddleware(server.tokenGenerator)))
+	v1Routes.POST("/admin/signup", server.createUser)
+	v1Routes.POST("/admin/login", server.loginUser)
 
+	authRoutes := v1Routes.Group("/").Use((authMiddleware(server.tokenGenerator)))
 	authRoutes.PATCH("/user/update", server.updateUser)
+	
+	adminAuthRoutes := v1Routes.Group("/").Use((authMiddleware(server.adminTokenGenerator)))
+	adminAuthRoutes.PATCH("/admin/user/restrict", server.updateUser)
+	adminAuthRoutes.PATCH("/admin/user/delete", server.updateUser)
 
 	// chain websocket server
 	authRoutes.GET("/chat", server.websocket.HandleConnection)
@@ -59,6 +72,15 @@ func (server *Server) setupRouter() {
 // Start runs HTTP server on a specific address
 func (server *Server) Start(address string) error {
 	return server.router.Run(address)
+}
+
+// apiErrorResponse returns a custom error response.
+func apiServerResponse(msg string, data interface{}) gin.H {
+	return gin.H{
+		"status":  "success",
+		"message": msg,
+		"data": data,
+	}
 }
 
 // apiErrorResponse returns a custom error response.

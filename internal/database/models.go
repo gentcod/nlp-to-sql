@@ -5,20 +5,74 @@
 package db
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+type RoleType string
+
+const (
+	RoleTypeUser  RoleType = "user"
+	RoleTypeAdmin RoleType = "admin"
+)
+
+func (e *RoleType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RoleType(s)
+	case string:
+		*e = RoleType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RoleType: %T", src)
+	}
+	return nil
+}
+
+type NullRoleType struct {
+	RoleType RoleType `json:"role_type"`
+	Valid    bool     `json:"valid"` // Valid is true if RoleType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRoleType) Scan(value interface{}) error {
+	if value == nil {
+		ns.RoleType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RoleType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRoleType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RoleType), nil
+}
+
+type Admin struct {
+	ID        uuid.UUID `json:"id"`
+	AuthID    uuid.UUID `json:"auth_id"`
+	Username  string    `json:"username"`
+	FullName  string    `json:"full_name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Auth struct {
-	ID                uuid.UUID `json:"id"`
-	Email             string    `json:"email"`
-	HarshedPassword   string    `json:"harshed_password"`
-	PasswordChangedAt time.Time `json:"password_changed_at"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	Restricted        bool      `json:"restricted"`
-	Deleted           bool      `json:"deleted"`
+	ID                uuid.UUID    `json:"id"`
+	Email             string       `json:"email"`
+	HarshedPassword   string       `json:"harshed_password"`
+	PasswordChangedAt time.Time    `json:"password_changed_at"`
+	CreatedAt         time.Time    `json:"created_at"`
+	UpdatedAt         time.Time    `json:"updated_at"`
+	Restricted        bool         `json:"restricted"`
+	Deleted           bool         `json:"deleted"`
+	Role              NullRoleType `json:"role"`
 }
 
 type User struct {

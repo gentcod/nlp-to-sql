@@ -14,8 +14,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// TODO: Implement password confirmation when updating account and password auth for getting account
-func (server *Server) createUser(ctx *gin.Context) {
+func (server *Server) createAdminUser(ctx *gin.Context) {
 	var req createUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, apiErrorResponse(err))
@@ -28,20 +27,20 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	arg := db.CreateUserTxParams{
-		CreateAuthParams: db.CreateAuthParams{
+	arg := db.CreateAdminTxParams{
+		CreateAdminAuthParams: db.CreateAdminAuthParams{
 			ID:              uuid.New(),
 			Email:           req.Email,
 			HarshedPassword: harshedPassword,
 		},
-		CreateUserParams: db.CreateUserParams{
+		CreateAdminParams: db.CreateAdminParams{
 			ID:       uuid.New(),
 			Username: req.Username,
 			FullName: req.FullName,
 		},
 	}
 
-	usertx, err := server.store.CreateUserTx(ctx, arg)
+	adminTx, err := server.store.CreateAdminTx(ctx, arg)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
@@ -54,12 +53,12 @@ func (server *Server) createUser(ctx *gin.Context) {
 		return
 	}
 
-	profile := getUserProfile(usertx)
+	profile := getAminrProfile(adminTx)
 
 	ctx.JSON(http.StatusOK, apiServerResponse("admin account created sucessfully", profile))
 }
 
-func (server *Server) updateUser(ctx *gin.Context) {
+func (server *Server) updateAdminUser(ctx *gin.Context) {
 	var req updateUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, apiErrorResponse(err))
@@ -73,7 +72,7 @@ func (server *Server) updateUser(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, auth.ID)
+	admin, err := server.store.GetAdmin(ctx, auth.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
@@ -88,7 +87,7 @@ func (server *Server) updateUser(ctx *gin.Context) {
 		}
 	}
 
-	txArg := db.UpdateUserTxParams{
+	txArg := db.UpdateAdminTxParams{
 		UpdateAuthParams: db.UpdateAuthParams{
 			ID: auth.ID,
 			Email: sql.NullString{
@@ -100,8 +99,8 @@ func (server *Server) updateUser(ctx *gin.Context) {
 				Valid:  newHarshedPassword != "",
 			},
 		},
-		UpdateUserParams: db.UpdateUserParams{
-			ID: user.ID,
+		UpdateAdminParams: db.UpdateAdminParams{
+			ID: admin.ID,
 			Username: sql.NullString{
 				String: req.Username,
 				Valid:  req.Username != "",
@@ -118,35 +117,35 @@ func (server *Server) updateUser(ctx *gin.Context) {
 		Valid: newHarshedPassword != "",
 	}
 
-	updateTx, err := server.store.UpdateUserTx(ctx, txArg)
+	updateTx, err := server.store.UpdateAdminTx(ctx, txArg)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
 	}
 
-	profile := getUserProfile(updateTx)
-	ctx.JSON(http.StatusOK, apiServerResponse("user account updated sucessfully", profile))
+	profile := getAminrProfile(updateTx)
+	ctx.JSON(http.StatusOK, apiServerResponse("admin account updated sucessfully", profile))
 }
 
-func (server *Server) loginUser(ctx *gin.Context) {
+func (server *Server) loginAdminUser(ctx *gin.Context) {
 	var req loginUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, apiErrorResponse(err))
 		return
 	}
 
-	auth, valid := server.validateUser(ctx, req.Email, req.Password)
+	auth, valid := server.validateAdminUser(ctx, req.Email, req.Password)
 	if !valid {
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, auth.ID)
+	user, err := server.store.GetAdmin(ctx, auth.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
 	}
 
-	accessToken, accessPayload, err := server.tokenGenerator.CreateToken(user.Username, auth.ID, server.config.AccessTokenDuration)
+	accessToken, accessPayload, err := server.adminTokenGenerator.CreateToken(user.Username, auth.ID, server.config.AccessTokenDuration)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
 		return
@@ -167,7 +166,7 @@ func (server *Server) loginUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, apiServerResponse("Account login sucessfully", resp))
 }
 
-func (server *Server) validateUser(ctx *gin.Context, email string, password string) (db.Auth, bool) {
+func (server *Server) validateAdminUser(ctx *gin.Context, email string, password string) (db.Auth, bool) {
 	auth, err := server.store.ValidateAuth(ctx, email)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -179,7 +178,7 @@ func (server *Server) validateUser(ctx *gin.Context, email string, password stri
 		return auth, false
 	}
 
-	if auth.Role.RoleType != db.RoleTypeUser {
+	if auth.Role.RoleType != db.RoleTypeAdmin {
 		msg := "Invalid route."
 		ctx.JSON(http.StatusUnauthorized, apiErrorResponse(errors.New(msg)))
 		return auth, false
@@ -206,23 +205,12 @@ func (server *Server) validateUser(ctx *gin.Context, email string, password stri
 	return auth, true
 }
 
-func getUserProfile(usertx db.UserTxResult) UserProfile {
+func getAminrProfile(tx db.AdminTxResult) UserProfile {
 	return UserProfile{
-		Username:          usertx.User.Username,
-		FullName:          usertx.User.FullName,
-		Email:             usertx.Auth.Email,
-		CreatedAt:         usertx.User.CreatedAt,
-		PasswordChangedAt: usertx.Auth.PasswordChangedAt,
+		Username:          tx.Admin.Username,
+		FullName:          tx.Admin.FullName,
+		Email:             tx.Auth.Email,
+		CreatedAt:         tx.Admin.CreatedAt,
+		PasswordChangedAt: tx.Auth.PasswordChangedAt,
 	}
 }
-
-// TODO: implement logic for validating difference for password, username and full_name
-// func validateUpdateReq
-// _, valid := server.validateUser(ctx, auth.Email, req.Password)
-// if valid {
-// 	msg := "current password and new password must not be the same"
-// 	ctx.JSON(http.StatusBadRequest, apiErrorResponse(errors.New(msg)))
-// 	return
-// }
-
-// TODO: Implement logic account recovery after deletion or restriction.

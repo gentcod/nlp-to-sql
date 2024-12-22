@@ -53,7 +53,7 @@ func (dbcron *DBCron) runCleanup(batchSize int) {
 	defer logFile.Close()
 
 	var err error
-	totalDeleted, err := dbcron.store.DeleteExpRestrictedRecords(context.Background(), batchSize)
+	totalDeleted, err := dbcron.store.DeleteExpDeletedUserRecords(context.Background(), batchSize)
 	if err != nil {
 		err = fmt.Errorf("Error during cleanup: %v", err)
 	}
@@ -71,7 +71,7 @@ func (dbcron *DBCron) InitCron() {
 		err = fmt.Errorf("Error during cleanup: %v", err)
 	}
 
-	_, err = dbcron.c.AddFunc(cronschedule, func() {
+	_, err = dbcron.c.AddFunc(testschedule, func() {
 		dbcron.runCleanup(batchSize)
 	})
 	if err != nil {

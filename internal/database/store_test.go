@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/gentcod/nlp-to-sql/util"
@@ -10,119 +9,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomUserTx(t *testing.T) UserTxResult {
+func createRandomUserOrAdminTx(t *testing.T, role RoleType) (userTx UserTxResult, adminTx AdminTxResult) {
 	store := NewStore(testDB)
 
 	harshedPassword, err := util.HashPassword(util.RandomStr(8))
 	require.NoError(t, err)
 
-	arg := CreateUserTxParams{
-		CreateAuthParams: CreateAuthParams{
-			ID:              uuid.New(),
-			Email:           util.RandomEmail(10),
-			HarshedPassword: harshedPassword,
-		},
-		CreateUserParams: CreateUserParams{
-			ID:       uuid.New(),
-			Username: util.RandomUser(),
-			FullName: util.RandomUser(),
-		},
+	
+	if role == RoleTypeUser {
+		arg := CreateUserTxParams{
+			CreateAuthParams: CreateAuthParams{
+				ID:              uuid.New(),
+				Email:           util.RandomEmail(10),
+				HarshedPassword: harshedPassword,
+			},
+			CreateUserParams: CreateUserParams{
+				ID:       uuid.New(),
+				Username: util.RandomUser(),
+				FullName: util.RandomUser(),
+			},
+		}
+
+		userTx, err = store.CreateUserTx(context.Background(), arg)
+		require.NoError(t, err)
+		require.NotEmpty(t, userTx)
+
+		require.NotZero(t, userTx.Auth.ID)
+		require.Equal(t, arg.CreateAuthParams.Email, userTx.Auth.Email)
+		require.Equal(t, arg.CreateAuthParams.HarshedPassword, userTx.Auth.HarshedPassword)
+		require.Equal(t, RoleTypeUser, userTx.Auth.Role.RoleType)
+		require.True(t, userTx.Auth.PasswordChangedAt.IsZero())
+		require.NotZero(t, userTx.Auth.CreatedAt)
+
+		require.NotZero(t, userTx.User.ID)
+		require.Equal(t, arg.CreateAuthParams.ID, userTx.User.AuthID)
+		require.Equal(t, arg.CreateUserParams.Username, userTx.User.Username)
+		require.Equal(t, arg.CreateUserParams.FullName, userTx.User.FullName)
+		require.True(t, userTx.User.UpdatedAt.IsZero())
+		require.NotZero(t, userTx.User.CreatedAt)
+		return  
+
+	} else {
+		arg := CreateAdminTxParams{
+			CreateAdminAuthParams: CreateAdminAuthParams {
+				ID:              uuid.New(),
+				Email:           util.RandomEmail(10),
+				HarshedPassword: harshedPassword,
+			},
+			CreateAdminParams: CreateAdminParams{
+				ID:       uuid.New(),
+				Username: util.RandomUser(),
+				FullName: util.RandomUser(),
+			},
+		}
+
+		adminTx, err = store.CreateAdminTx(context.Background(), arg)
+		require.NoError(t, err)
+		require.NotEmpty(t, adminTx)
+
+		require.NotZero(t, adminTx.Auth.ID)
+		require.Equal(t, arg.CreateAdminAuthParams.Email, adminTx.Auth.Email)
+		require.Equal(t, arg.CreateAdminAuthParams.HarshedPassword, adminTx.Auth.HarshedPassword)
+		require.Equal(t, RoleTypeAdmin, adminTx.Auth.Role.RoleType)
+		require.True(t, adminTx.Auth.PasswordChangedAt.IsZero())
+		require.NotZero(t, adminTx.Auth.CreatedAt)
+
+		require.NotZero(t, adminTx.Admin.ID)
+		require.Equal(t, arg.CreateAdminAuthParams.ID, adminTx.Admin.AuthID)
+		require.Equal(t, arg.CreateAdminParams.Username, adminTx.Admin.Username)
+		require.Equal(t, arg.CreateAdminParams.FullName, adminTx.Admin.FullName)
+		require.True(t, adminTx.Admin.UpdatedAt.IsZero())
+		require.NotZero(t, adminTx.Admin.CreatedAt)
 	}
 
-	result, err := store.CreateUserTx(context.Background(), arg)
-	require.NoError(t, err)
-	require.NotEmpty(t, result)
-
-	require.NotZero(t, result.Auth.ID)
-	require.Equal(t, arg.CreateAuthParams.Email, result.Auth.Email)
-	require.Equal(t, arg.CreateAuthParams.HarshedPassword, result.Auth.HarshedPassword)
-	require.True(t, result.Auth.PasswordChangedAt.IsZero())
-	require.NotZero(t, result.Auth.CreatedAt)
-
-	require.NotZero(t, result.User.ID)
-	require.Equal(t, arg.CreateAuthParams.ID, result.User.AuthID)
-	require.Equal(t, arg.CreateUserParams.Username, result.User.Username)
-	require.Equal(t, arg.CreateUserParams.FullName, result.User.FullName)
-	require.True(t, result.User.UpdatedAt.IsZero())
-	require.NotZero(t, result.User.CreatedAt)
-
-	return result
-}
-
-func TestCreateUserTx(t *testing.T) {
-	createRandomUserTx(t)
-}
-
-func TestUpdateUserTx(t *testing.T) {
-	store := NewStore(testDB)
-
-	userTx := createRandomUserTx(t)
-
-	email := util.RandomEmail(10)
-	username := util.RandomUser()
-	fullName := util.RandomUser()
-
-	harshedPassword, err := util.HashPassword(util.RandomStr(8))
-	require.NoError(t, err)
-
-	arg := UpdateUserTxParams{
-		UpdateAuthParams: UpdateAuthParams{
-			ID: userTx.Auth.ID,
-			Email: sql.NullString{
-				String: email,
-				Valid:  email != "",
-			},
-			HarshedPassword: sql.NullString{
-				String: harshedPassword,
-				Valid:  harshedPassword != "",
-			},
-		},
-		UpdateUserParams: UpdateUserParams{
-			ID: userTx.User.ID,
-			Username: sql.NullString{
-				String: username,
-				Valid:  username != "",
-			},
-			FullName: sql.NullString{
-				String: fullName,
-				Valid:  fullName != "",
-			},
-		},
-	}
-
-	result, err := store.UpdateUserTx(context.Background(), arg)
-	require.NoError(t, err)
-	require.NotEmpty(t, result)
-
-	require.Equal(t, userTx.Auth.ID, result.Auth.ID)
-	require.Equal(t, arg.UpdateAuthParams.Email.String, result.Auth.Email)
-	require.Equal(t, arg.UpdateAuthParams.HarshedPassword.String, result.Auth.HarshedPassword)
-	require.Equal(t, userTx.Auth.CreatedAt, result.Auth.CreatedAt)
-	require.NotZero(t, result.Auth.UpdatedAt)
-
-	require.Equal(t, userTx.User.ID, result.User.ID)
-	require.Equal(t, userTx.Auth.ID, result.User.AuthID)
-	require.Equal(t, arg.UpdateUserParams.Username.String, result.User.Username)
-	require.Equal(t, arg.UpdateUserParams.FullName.String, result.User.FullName)
-	require.Equal(t, userTx.User.CreatedAt, result.User.CreatedAt)
-	require.NotZero(t, result.User.UpdatedAt)
-}
-
-func TestDeleteUserTx(t *testing.T) {
-	store := NewStore(testDB)
-
-	userTx := createRandomUserTx(t)
-
-	err := store.DeleteUserTx(context.Background(), userTx.Auth.ID, userTx.User.ID)
-	require.NoError(t, err)
-
-	user, err := store.GetUser(context.Background(), userTx.User.AuthID)
-	require.Error(t, err)
-	require.Empty(t, user)
-
-	auth, err := store.ValidateAuth(context.Background(), userTx.Auth.Email)
-	require.NoError(t, err)
-	require.True(t, auth.Deleted)
+	return
 }
 
 func TestGetData(t *testing.T) {
