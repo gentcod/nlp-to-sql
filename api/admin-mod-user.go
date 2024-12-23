@@ -13,11 +13,7 @@ import (
 )
 
 func (server *Server) adminRestrictUser(ctx *gin.Context) {
-	var req adminModUserRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, apiErrorResponse(err))
-		return
-	}
+	userId := ctx.Param("userId")
 
 	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	_, err := server.store.GetAuth(ctx, authPayload.UserID)
@@ -31,7 +27,7 @@ func (server *Server) adminRestrictUser(ctx *gin.Context) {
 		return
 	}
 
-	_, err = server.store.GetUser(ctx, uuid.MustParse(req.userId))
+	_, err = server.store.GetUser(ctx, uuid.MustParse(userId))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			msg := "user not found"
@@ -43,7 +39,7 @@ func (server *Server) adminRestrictUser(ctx *gin.Context) {
 	}
 
 	err = server.store.RestrictAuth(ctx, db.RestrictAuthParams{
-		ID: uuid.MustParse(req.userId),
+		ID: uuid.MustParse(userId),
 		UpdatedAt: time.Now(),
 	})
 	if err != nil {
@@ -60,11 +56,7 @@ func (server *Server) adminRestrictUser(ctx *gin.Context) {
 }
 
 func (server *Server) adminDeleteUser(ctx *gin.Context) {
-	var req adminModUserRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, apiErrorResponse(err))
-		return
-	}
+	userId := ctx.Param("userId")
 
 	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	_, err := server.store.GetAuth(ctx, authPayload.UserID)
@@ -78,7 +70,7 @@ func (server *Server) adminDeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, uuid.MustParse(req.userId))
+	user, err := server.store.GetUser(ctx, uuid.MustParse(userId))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			msg := "user account not found"
@@ -89,7 +81,7 @@ func (server *Server) adminDeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	err = server.store.DeleteUserTx(ctx, uuid.MustParse(req.userId), user.ID)
+	err = server.store.DeleteUserTx(ctx, uuid.MustParse(userId), user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			msg := "user authentication not found"
@@ -100,5 +92,5 @@ func (server *Server) adminDeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, apiServerResponse("Restricted user successfully", ""))
+	ctx.JSON(http.StatusOK, apiServerResponse("Deleted user successfully.", ""))
 }
