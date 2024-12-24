@@ -1,6 +1,8 @@
 package mapper
 
-import "database/sql"
+import (
+	"database/sql"
+)
 
 // Mapper connets to the database to get database information.
 type Mapper interface {
@@ -16,13 +18,37 @@ type Mapper interface {
 
 // InitMapper returns mapper based on database type.
 func InitMapper(dbType string) Mapper {
-	if dbType == "mysql" {
-		return NewMySQLMapper()
-	}
-
-	if dbType == "postgres" {
-		return NewPQMapper()
+	if isValidDBType(dbType) {
+		if dbType == "mysql" {
+			return NewMySQLMapper()
+		}
+	
+		if dbType == "postgres" {
+			return NewPQMapper()
+		}
 	}
 
 	return nil
+}
+
+type dBType string
+
+const (
+	dBTypeMySQL    dBType = "mysql"
+	dBTypePostgres dBType = "postgres"
+	dBTypeSQLite   dBType = "sqlite"
+)
+
+// AlloweddBTypes contains all valid database types
+var AllowedDBTypes = map[dBType]bool{
+	dBTypeMySQL:    true,
+	dBTypePostgres: true,
+	dBTypeSQLite:   true,
+}
+
+// IsValid checks if the DBType is valid
+func isValidDBType(s string) bool {
+	dt := dBType(s)
+	_, ok := AllowedDBTypes[dt]
+	return ok
 }

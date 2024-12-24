@@ -154,7 +154,6 @@ func (c *Client) readPump(srv *WebSocketServer) {
 			continue
 		}
 
-		// Add timestamp to incoming message
 		msg.Timestamp = time.Now()
 		c.receive <- msg
 	}
