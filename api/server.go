@@ -53,15 +53,17 @@ func (server *Server) setupRouter() {
 	v1Routes.POST("/user/signup", server.createUser)
 	v1Routes.POST("/user/login", server.loginUser)
 
-	v1Routes.POST("/admin/signup", server.createUser)
-	v1Routes.POST("/admin/login", server.loginUser)
+	v1Routes.POST("/admin/signup", server.createAdminUser)
+	v1Routes.POST("/admin/login", server.loginAdminUser)
 
 	authRoutes := v1Routes.Group("/").Use((authMiddleware(server.tokenGenerator)))
 	authRoutes.PATCH("/user/update", server.updateUser)
+	authRoutes.PATCH("/user/delete", server.deleteUser)
 	
 	adminAuthRoutes := v1Routes.Group("/").Use((authMiddleware(server.adminTokenGenerator)))
-	adminAuthRoutes.PATCH("/admin/user/restrict", server.updateUser)
-	adminAuthRoutes.PATCH("/admin/user/delete", server.updateUser)
+	adminAuthRoutes.PATCH("/admin/update", server.updateAdminUser)
+	adminAuthRoutes.PATCH("/admin/user/restrict/:userId", server.adminRestrictUser)
+	adminAuthRoutes.PATCH("/admin/user/delete/:userId", server.adminDeleteUser)
 
 	// chain websocket server
 	authRoutes.GET("/chat", server.websocket.HandleConnection)

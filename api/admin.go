@@ -45,7 +45,8 @@ func (server *Server) createAdminUser(ctx *gin.Context) {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
 			case "unique_violation":
-				ctx.JSON(http.StatusForbidden, apiErrorResponse(err))
+				msg := "user email/usenname already exists"
+				ctx.JSON(http.StatusForbidden, apiErrorResponse(errors.New(msg)))
 				return
 			}
 		}

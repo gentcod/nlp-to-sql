@@ -2,7 +2,6 @@ package api
 
 import (
 	"time"
-	// "github.com/google/uuid"
 )
 
 type createUserRequest struct {
@@ -30,7 +29,7 @@ type updateUserRequest struct {
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	FullName string `json:"full_name"`
-	Password string `json:"password"`
+	Password string `json:"password" binding:"min=8"`
 }
 
 type UserProfile struct {

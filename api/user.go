@@ -46,7 +46,8 @@ func (server *Server) createUser(ctx *gin.Context) {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code.Name() {
 			case "unique_violation":
-				ctx.JSON(http.StatusForbidden, apiErrorResponse(err))
+				msg := "user email/usenname already exists"
+				ctx.JSON(http.StatusForbidden, apiErrorResponse(errors.New(msg)))
 				return
 			}
 		}
@@ -56,7 +57,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 
 	profile := getUserProfile(usertx)
 
-	ctx.JSON(http.StatusOK, apiServerResponse("admin account created sucessfully", profile))
+	ctx.JSON(http.StatusOK, apiServerResponse("user account created sucessfully", profile))
 }
 
 func (server *Server) updateUser(ctx *gin.Context) {
@@ -126,6 +127,44 @@ func (server *Server) updateUser(ctx *gin.Context) {
 
 	profile := getUserProfile(updateTx)
 	ctx.JSON(http.StatusOK, apiServerResponse("user account updated sucessfully", profile))
+}
+
+func (server *Server) deleteUser(ctx *gin.Context) {
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
+	auth, err := server.store.GetAuth(ctx, authPayload.UserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			msg := "user not found"
+			ctx.JSON(http.StatusUnauthorized, apiErrorResponse(errors.New(msg)))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
+		return
+	}
+
+	user, err := server.store.GetUser(ctx, auth.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			msg := "user account not found"
+			ctx.JSON(http.StatusNotFound, apiErrorResponse(errors.New(msg)))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
+		return
+	}
+
+	err = server.store.DeleteUserTx(ctx, auth.ID, user.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			msg := "user authentication not found"
+			ctx.JSON(http.StatusNotFound, apiErrorResponse(errors.New(msg)))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, apiErrorResponse(err))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, apiServerResponse("Deleted account successfully", ""))
 }
 
 func (server *Server) loginUser(ctx *gin.Context) {

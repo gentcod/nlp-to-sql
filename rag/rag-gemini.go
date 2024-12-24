@@ -60,7 +60,7 @@ func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
 		},
 		{
 			Parts: []genai.Part{
-				genai.Text("Omit fields or columns with sensitive data such as password, hashed_password, api_keys or similar fields"),
+				genai.Text("Omit fields or columns with sensitive data such as password, hashed_password, api_keys or similar fields no matter the condtions stated in corresponding statements."),
 			},
 			Role: "user",
 		},

@@ -71,14 +71,14 @@ func (dbcron *DBCron) InitCron() {
 		err = fmt.Errorf("Error during cleanup: %v", err)
 	}
 
-	_, err = dbcron.c.AddFunc(testschedule, func() {
+	_, err = dbcron.c.AddFunc(cronschedule, func() {
 		dbcron.runCleanup(batchSize)
 	})
 	if err != nil {
 		log.Fatalf("Error initializing and scheduling cleanup job: %v", err)
 	}
 
-	log.Printf("Cleanup job scheduled with cron expression: %s", cronschedule)
+	log.Print("Cleanup job scheduled successfully")
 
 	dbcron.c.Start()
 }
