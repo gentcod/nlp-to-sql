@@ -33,7 +33,7 @@ func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema
 	}
 
 	if !util.ValidQuery(query) {
-		return query, nil
+		return converter.Response, fmt.Errorf("the generated query violates the rule of the policy of omitting sensitive data.")
 	}
 
 	data, err := db.GetData(conn, query)
