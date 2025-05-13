@@ -40,7 +40,7 @@ func ValidQuery(query string) bool {
 	if containsRestrictedWords(query) {
 		return false
 	}
-	
+
 	mStmt, merr := sqlparser.Parse(query)
 	if mStmt != nil {
 		switch mStmt := mStmt.(type) {

@@ -7,7 +7,7 @@ import (
 const (
 	dBTypeMySQL    = "mysql"
 	dBTypePostgres = "postgres"
-	dBTypeSQLite = "sqlite"
+	dBTypeSQLite   = "sqlite"
 )
 
 // AlloweddBTypes contains all valid database types

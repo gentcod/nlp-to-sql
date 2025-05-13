@@ -39,7 +39,7 @@ func (server *Server) adminRestrictUser(ctx *gin.Context) {
 	}
 
 	err = server.store.RestrictAuth(ctx, db.RestrictAuthParams{
-		ID: uuid.MustParse(userId),
+		ID:        uuid.MustParse(userId),
 		UpdatedAt: time.Now(),
 	})
 	if err != nil {

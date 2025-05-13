@@ -2,7 +2,7 @@ package rag
 
 // LLM represents the LLM choice for text generation
 type LLM interface {
-	// GenerateQuery initializes connection to the LLM API parsing some specified LLMOpts 
+	// GenerateQuery initializes connection to the LLM API parsing some specified LLMOpts
 	// these options are used to generate SQL Query
 	GenerateQuery(que string) (string, error)
 

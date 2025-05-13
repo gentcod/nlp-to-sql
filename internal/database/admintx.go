@@ -10,11 +10,11 @@ import (
 
 type CreateAdminTxParams struct {
 	CreateAdminAuthParams CreateAdminAuthParams
-	CreateAdminParams CreateAdminParams
+	CreateAdminParams     CreateAdminParams
 }
 
 type AdminTxResult struct {
-	Auth Auth
+	Auth  Auth
 	Admin Admin
 }
 
@@ -43,7 +43,7 @@ func (store *SQLStore) CreateAdminTx(ctx context.Context, arg CreateAdminTxParam
 }
 
 type UpdateAdminTxParams struct {
-	UpdateAuthParams UpdateAuthParams
+	UpdateAuthParams  UpdateAuthParams
 	UpdateAdminParams UpdateAdminParams
 }
 
@@ -84,7 +84,7 @@ func (store *SQLStore) DeleteAdminTx(ctx context.Context, authID uuid.UUID, admi
 		var err error
 
 		arg := DeleteAuthParams{
-			ID: authID,
+			ID:        authID,
 			UpdatedAt: time.Now(),
 		}
 		err = q.DeleteAuth(ctx, arg)

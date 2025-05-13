@@ -15,7 +15,6 @@ func createRandomUserOrAdminTx(t *testing.T, role RoleType) (userTx UserTxResult
 	harshedPassword, err := util.HashPassword(util.RandomStr(8))
 	require.NoError(t, err)
 
-	
 	if role == RoleTypeUser {
 		arg := CreateUserTxParams{
 			CreateAuthParams: CreateAuthParams{
@@ -47,11 +46,11 @@ func createRandomUserOrAdminTx(t *testing.T, role RoleType) (userTx UserTxResult
 		require.Equal(t, arg.CreateUserParams.FullName, userTx.User.FullName)
 		require.True(t, userTx.User.UpdatedAt.IsZero())
 		require.NotZero(t, userTx.User.CreatedAt)
-		return  
+		return
 
 	} else {
 		arg := CreateAdminTxParams{
-			CreateAdminAuthParams: CreateAdminAuthParams {
+			CreateAdminAuthParams: CreateAdminAuthParams{
 				ID:              uuid.New(),
 				Email:           util.RandomEmail(10),
 				HarshedPassword: harshedPassword,

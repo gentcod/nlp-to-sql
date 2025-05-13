@@ -16,7 +16,7 @@ func TestCreateAdminUserTx(t *testing.T) {
 func TestUpdateAdminTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	_,adminTx := createRandomUserOrAdminTx(t, RoleTypeAdmin)
+	_, adminTx := createRandomUserOrAdminTx(t, RoleTypeAdmin)
 
 	email := util.RandomEmail(10)
 	username := util.RandomUser()
@@ -71,7 +71,7 @@ func TestUpdateAdminTx(t *testing.T) {
 func TestDeleteAdminTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	_,adminTx := createRandomUserOrAdminTx(t, RoleTypeAdmin)
+	_, adminTx := createRandomUserOrAdminTx(t, RoleTypeAdmin)
 
 	err := store.DeleteAdminTx(context.Background(), adminTx.Auth.ID, adminTx.Admin.ID)
 	require.NoError(t, err)

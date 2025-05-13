@@ -11,7 +11,7 @@ import (
 
 type SQLConverter struct {
 	Response string
-	Opts rag.LLMOpts
+	Opts     rag.LLMOpts
 }
 
 // NewSQLConverter initializes a Converter that can be used to handle SQL queries
