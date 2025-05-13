@@ -1,0 +1,75 @@
+name: Vulnerability Scan workflow
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  vex_scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate CycloneDX SBOM
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+          args: mod -licenses -json -output bom.json
+
+      - name: Scan vulnerabilities with Grype
+        run: grype sbom:./bom.json -o json > grype-results.json
+
+      - name: Parse Grype Results
+        id: parse_results
+        run: |
+          vulns=$(jq '.matches | length' grype-results.json)
+          echo "Found $vulns vulnerabilities" > issue_body.txt
+          echo '```json' >> issue_body.txt
+          jq '.matches[0:5]' grype-results.json >> issue_body.txt
+          echo '```' >> issue_body.txt
+          echo "vuln_count=$vulns" >> $GITHUB_OUTPUT
+
+      - name: Run Meterian Scanner
+        uses: MeterianHQ/meterian-github-action@v1.0.17
+        continue-on-error: true
+        env:
+          METERIAN_API_TOKEN: ${{ secrets.METERIAN_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          ALWAYS_OPEN_PRS: true
+        with:
+          autofix_security: conservative
+          autofix_stability: safe
+          autofix_with_pr: true
+          autofix_with_issue: true
+
+      - name: Extract Meterian Report Link
+        id: meterian_link
+        run: |
+          url=$(grep -o 'https://www.meterian.com/projects/?[^ ]*' meterian_output.log || echo "")
+          echo "link=$url" >> $GITHUB_OUTPUT
+
+      - name: Append Meterian Link to Issue
+        if: steps.meterian_link.outputs.link != ''
+        run: |
+          echo "" >> issue_body.txt
+          echo "🔍 Check Meterian report here: ${{
+            steps.meterian_link.outputs.link
+          }}" >> issue_body.txt
+
+      - name: Create GitHub Issue
+        if: steps.parse_results.outputs.vuln_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Vulnerability Scan Report - $(date +'%Y-%m-%d')" \
+            --body-file issue_body.txt \
+         #   --label "security,grype,automated-scan"
