@@ -55,30 +55,28 @@ func (dbcron *DBCron) runCleanup(batchSize int) {
 	var err error
 	totalDeleted, err := dbcron.store.DeleteExpDeletedUserRecords(context.Background(), batchSize)
 	if err != nil {
-		err = fmt.Errorf("Error during cleanup: %v", err)
-	}
-
-	if err != nil {
+		err = fmt.Errorf("error during cleanup: %v", err)
 		log.Printf("Eror running cleanup job -> %v. Total records deleted: %d", err, totalDeleted)
 	} else {
 		log.Printf("Cleanup job completed successfully. Total records deleted: %d", totalDeleted)
 	}
 }
 
-func (dbcron *DBCron) InitCron() {
+func (dbcron *DBCron) InitCron() error {
 	batchSize, err := strconv.Atoi(dbcron.config.BatchSize)
 	if err != nil {
-		err = fmt.Errorf("Error during cleanup: %v", err)
+		return fmt.Errorf("error during cleanup: %v", err)
 	}
 
 	_, err = dbcron.c.AddFunc(cronschedule, func() {
 		dbcron.runCleanup(batchSize)
 	})
 	if err != nil {
-		log.Fatalf("Error initializing and scheduling cleanup job: %v", err)
+		return fmt.Errorf("error initializing and scheduling cleanup job: %v", err)
 	}
 
 	log.Print("Cleanup job scheduled successfully")
 
 	dbcron.c.Start()
+	return nil
 }

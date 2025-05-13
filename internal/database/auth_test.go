@@ -11,10 +11,10 @@ import (
 func TestRestrictUserAuth(t *testing.T) {
 	store := NewStore(testDB)
 
-	userTx,_ := createRandomUserOrAdminTx(t, RoleTypeUser)
+	userTx, _ := createRandomUserOrAdminTx(t, RoleTypeUser)
 
 	err := store.RestrictAuth(context.Background(), RestrictAuthParams{
-		ID: userTx.Auth.ID,
+		ID:        userTx.Auth.ID,
 		UpdatedAt: time.Now(),
 	})
 	require.NoError(t, err)

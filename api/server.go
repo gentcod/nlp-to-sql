@@ -12,12 +12,12 @@ import (
 
 // Server serves HTTP requests for our banking service
 type Server struct {
-	config         util.Config
-	store          db.Store
-	tokenGenerator token.Generator
+	config              util.Config
+	store               db.Store
+	tokenGenerator      token.Generator
 	adminTokenGenerator token.Generator
-	websocket      *chat.WebSocketServer
-	router         *gin.Engine
+	websocket           *chat.WebSocketServer
+	router              *gin.Engine
 }
 
 // NewServer creates a new HTTP server amd setup routing
@@ -33,11 +33,11 @@ func NewServer(config util.Config, store db.Store, websocket *chat.WebSocketServ
 	}
 
 	server := &Server{
-		config:         config,
-		store:          store,
-		tokenGenerator: tokenGenerator,
+		config:              config,
+		store:               store,
+		tokenGenerator:      tokenGenerator,
 		adminTokenGenerator: adminTokenGenerator,
-		websocket:      websocket,
+		websocket:           websocket,
 	}
 
 	server.setupRouter()
@@ -56,16 +56,19 @@ func (server *Server) setupRouter() {
 	v1Routes.POST("/admin/signup", server.createAdminUser)
 	v1Routes.POST("/admin/login", server.loginAdminUser)
 
+	// for testing purposes
+	// v1Routes.GET("/chat", server.websocket.HandleConnection)
+
 	authRoutes := v1Routes.Group("/").Use((authMiddleware(server.tokenGenerator)))
 	authRoutes.PATCH("/user/update", server.updateUser)
 	authRoutes.PATCH("/user/delete", server.deleteUser)
-	
+
 	adminAuthRoutes := v1Routes.Group("/").Use((authMiddleware(server.adminTokenGenerator)))
 	adminAuthRoutes.PATCH("/admin/update", server.updateAdminUser)
 	adminAuthRoutes.PATCH("/admin/user/restrict/:userId", server.adminRestrictUser)
 	adminAuthRoutes.PATCH("/admin/user/delete/:userId", server.adminDeleteUser)
 
-	// chain websocket server
+	// websocket server
 	authRoutes.GET("/chat", server.websocket.HandleConnection)
 
 	server.router = router
@@ -81,7 +84,7 @@ func apiServerResponse(msg string, data interface{}) gin.H {
 	return gin.H{
 		"status":  "success",
 		"message": msg,
-		"data": data,
+		"data":    data,
 	}
 }
 

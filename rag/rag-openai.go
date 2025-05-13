@@ -70,7 +70,6 @@ func (llm *OpenAiLLM) GenerateQuery(que string) (string, error) {
 
 	fmt.Printf("Response: %s\n", body)
 
-
 	return llm.Query, nil
 }
 

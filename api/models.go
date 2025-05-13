@@ -41,5 +41,5 @@ type UserProfile struct {
 }
 
 type adminModUserRequest struct {
-	userId    string `query:"userId" binding:"required"`
+	userId string `query:"userId" binding:"required"`
 }

@@ -22,7 +22,6 @@ func main() {
 		log.Fatal("cannot load config", err)
 	}
 
-	// conn, err := sql.Open("mysql", config.DBUrl)
 	conn, err := sql.Open(config.DBDriver, config.DBUrl)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
@@ -41,10 +40,13 @@ func main() {
 
 	dbcron := cron.NewDBCron(store, cron.CronConfig{
 		BatchSize: config.CronBatchSize,
-		LogPath: config.LogPath,
+		LogPath:   config.LogPath,
 	})
 
-	dbcron.InitCron()
+	err = dbcron.InitCron()
+	if err != nil {
+		log.Fatal("error initializing database cron", err)
+	}
 
 	runGinServer(config, store, converter)
 }

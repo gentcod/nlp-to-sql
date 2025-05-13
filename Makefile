@@ -1,11 +1,12 @@
 current_dir = $(shell pwd)
 run:
-	go run .
+	./bin/nlptosql
 
 build:
+	gofmt -l -s -w .
 	go build -o bin/nlptosql .
 
-sqlc:
+sqlc-docker:
 	docker run --rm -v $(current_dir):/src -w /src sqlc/sqlc generate
 
 createdb:
@@ -29,4 +30,12 @@ mock:
 buildimage:
 	docker build -t nlqtosql:latest .
 
-.PHONY: run build sqlc createdb dropdb gooseup goosedown test mock buildimage
+.PHONY: run build sqlc-docker createdb dropdb gooseup goosedown test mock buildimage
+
+.PHONY:
+runvulnscan:
+	govulncheck -json ./... > vuln.json; govulncheck ./... > vulnsum.txt
+
+.PHONY:
+sqlc:
+	sqlc generate

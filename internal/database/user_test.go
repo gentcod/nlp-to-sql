@@ -10,7 +10,7 @@ import (
 func TestGetUser(t *testing.T) {
 	store := NewStore(testDB)
 
-	userTx,_ := createRandomUserOrAdminTx(t, RoleTypeUser)
+	userTx, _ := createRandomUserOrAdminTx(t, RoleTypeUser)
 
 	result, err := store.GetUser(context.Background(), userTx.Auth.ID)
 	require.NoError(t, err)

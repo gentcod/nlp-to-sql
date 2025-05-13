@@ -84,7 +84,7 @@ func (store *SQLStore) DeleteUserTx(ctx context.Context, authID uuid.UUID, userI
 		var err error
 
 		arg := DeleteAuthParams{
-			ID: authID,
+			ID:        authID,
 			UpdatedAt: time.Now(),
 		}
 		err = q.DeleteAuth(ctx, arg)
