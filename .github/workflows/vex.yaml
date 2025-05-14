@@ -50,12 +50,6 @@ jobs:
           autofix_with_pr: true
           autofix_with_issue: true
 
-      - name: Extract Meterian Report Link
-        id: meterian_link
-        run: |
-          url=$(grep -o 'https://www.meterian.com/projects/?[^ ]*' meterian_output.log || echo "")
-          echo "link=$url" >> $GITHUB_OUTPUT
-
       - name: Append Meterian Link to Issue
         if: steps.meterian_link.outputs.link != ''
         run: |

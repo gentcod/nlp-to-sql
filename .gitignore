@@ -4,3 +4,4 @@ bin/
 logs/
 trial*
 vuln*
+.idea
