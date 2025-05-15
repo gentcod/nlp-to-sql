@@ -1,0 +1,45 @@
+name: Trivy Vulnerability Scan workflow
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  vex_scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.62.1
+
+      - name: Generate CycloneDX SBOM
+        run: trivy fs --format cyclonedx --output spdx.json .
+
+      - name: Scan vulnerabilities with Grype
+        run: trivy sbom spdx.json -o json > results.json
+
+      - name: Parse Trivy Results
+        id: parse_results
+        run: |
+          vulns=$(jq '.matches | length' results.json)
+          echo "Found $vulns vulnerabilities" > issue_body.txt
+          echo '```json' >> issue_body.txt
+          jq '.matches[0:5]' results.json >> issue_body.txt
+          echo '```' >> issue_body.txt
+          echo "vuln_count=$vulns" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Issue
+        if: steps.parse_results.outputs.vuln_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Trivy Vulnerability Scan Report - $(date +'%Y-%m-%d %H:%M:%S %Z')" \
+            --body-file issue_body.txt \
+         #   --label "security,grype,automated-scan"
