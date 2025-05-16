@@ -19,10 +19,10 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.62.1
 
       - name: Generate CycloneDX SBOM
-        run: trivy repo --format cyclonedx --scanners vuln --output spdx.json .
+        run: trivy repo --format cyclonedx --scanners vuln --output cyclonedx.json .
 
-      - name: Scan vulnerabilities with Grype
-        run: trivy sbom spdx.json -o json > results.json
+      - name: Scan vulnerabilities
+        run: trivy sbom --format json --output results.json cyclonedx.json
 
       - name: Parse Trivy Results
         id: parse_results
