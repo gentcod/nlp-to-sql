@@ -57,11 +57,11 @@ func (c *Client) handleDBConn(msg Message) {
 	}
 
 	if dbData.DbType == "" || dbData.DbName == "" || dbData.DbUrl == "" {
-		err := errors.New("database conn fields cannot be empty")
+		err := errors.New("database connection field(s) cannot be empty")
 		c.send <- Response{
 			Type:      "start_response",
 			Status:    "error",
-			Message:   fmt.Sprintf(`db conn error: %v`, err),
+			Message:   fmt.Sprintf(`database connection error. %v`, err),
 			Timestamp: time.Now(),
 		}
 		return
@@ -72,7 +72,7 @@ func (c *Client) handleDBConn(msg Message) {
 		c.send <- Response{
 			Type:      "start_response",
 			Status:    "error",
-			Message:   fmt.Sprintf(`fialed to establish database connection: %v`, err),
+			Message:   fmt.Sprintf(`fialed to establish database connection. %v`, err),
 			Timestamp: time.Now(),
 		}
 		return
@@ -84,7 +84,7 @@ func (c *Client) handleDBConn(msg Message) {
 		c.send <- Response{
 			Type:      "start_response",
 			Status:    "error",
-			Message:   fmt.Sprintf(`fialed to get db context: %v`, err),
+			Message:   fmt.Sprintf(`fialed to get database context. %v`, err),
 			Timestamp: time.Now(),
 		}
 		return
@@ -109,7 +109,7 @@ func (c *Client) handleChat(msg Message) {
 		c.send <- Response{
 			Type:      "chat_response",
 			Status:    "error",
-			Message:   fmt.Sprintf(`db conn error: %v`, err),
+			Message:   fmt.Sprintf(`database connection error. %v`, err),
 			Timestamp: time.Now(),
 		}
 		return
@@ -125,7 +125,7 @@ func (c *Client) handleChat(msg Message) {
 		c.send <- Response{
 			Type:      "start_response",
 			Status:    "error",
-			Message:   (fmt.Sprintf(`possible required missing fields, ensure the correct payload is sent containing: question, %V`, err)),
+			Message:   (fmt.Sprintf(`possible required missing fields, ensure the correct payload is sent. %V`, err)),
 			Timestamp: time.Now(),
 		}
 		return
