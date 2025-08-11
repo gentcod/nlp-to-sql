@@ -19,7 +19,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.10.0
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.41.0
 	google.golang.org/api v0.233.0
 )
 
@@ -83,11 +83,11 @@ require (
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	golang.org/x/arch v0.17.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/genproto v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 // indirect
