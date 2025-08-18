@@ -93,8 +93,8 @@ github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4
 github.com/gabriel-vasile/mimetype v1.4.9 h1:5k+WDwEsD9eTLL8Tz3L0VnmVh9QxGjRmjBvAG7U/oYY=
 github.com/gabriel-vasile/mimetype v1.4.9/go.mod h1:WnSQhFKJuBlRyLiKohA/2DtIlPFAbguNaG7QCHcyGok=
 github.com/gavv/httpexpect v2.0.0+incompatible/go.mod h1:x+9tiU1YnrOvnB725RkpoLv1M62hOWzwo5OXotisrKc=
-github.com/gentcod/environ v1.0.1 h1:n2rDIeWtx6fIhfiICRCYEPYWNo7ADFJGv6zKx4WCG6g=
-github.com/gentcod/environ v1.0.1/go.mod h1:OiDx/jC+Gp8eEtDGla1/XsNs4eOVFi7QkJA3uoB+Dbw=
+github.com/gentcod/environ v1.1.0 h1:LruBzkDLRK3FnhbicFTjWPw4dJUsH9yndSTYd9/BX8E=
+github.com/gentcod/environ v1.1.0/go.mod h1:OiDx/jC+Gp8eEtDGla1/XsNs4eOVFi7QkJA3uoB+Dbw=
 github.com/getsentry/raven-go v0.2.0 h1:no+xWJRb5ZI7eE8TWgIq1jLulQiIoLG0IfYxv5JYMGs=
 github.com/getsentry/raven-go v0.2.0/go.mod h1:KungGk8q33+aIAZUIVWZDr2OfAEBsO49PX4NzFV5kcQ=
 github.com/getsentry/sentry-go v0.32.0 h1:YKs+//QmwE3DcYtfKRH8/KyOOF/I6Qnx7qYGNHCGmCY=
