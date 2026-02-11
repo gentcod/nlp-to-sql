@@ -8,7 +8,7 @@ A backend application that enables conversational database interactions, leverag
 
 #### Example Question/Request:
 
-- > How many accounts have been opened till date???
+- > How many accounts have been opened till date?
 
 #### Generated Query:
 
