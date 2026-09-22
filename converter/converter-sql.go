@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	db "github.com/gentcod/nlp-to-sql/internal/database"
-	"github.com/gentcod/nlp-to-sql/rag"
+	"github.com/gentcod/nlp-to-sql/internal/rag"
 	"github.com/gentcod/nlp-to-sql/util"
 )
 
@@ -27,7 +27,20 @@ func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema
 		llmType,
 		converter.Opts,
 	)
-	query, err := llm.GenerateQuery(que)
+
+	mdl, err := llm.GetModelContext()
+	if err != nil {
+		return converter.Response, fmt.Errorf("error getting model context: %v", err)
+	}
+
+	model, ok := mdl.(rag.Model)
+	if !ok {
+		return converter.Response, fmt.Errorf("error casting Gemini RAG model: %v", err)
+	}
+
+	query, err := model.GenerateCachedResponse(que)
+	// query, err := llm.GenerateQuery(que)
+	fmt.Println(query)
 	if err != nil {
 		return converter.Response, fmt.Errorf("error evaluating chat with LLM: %v", err)
 	}

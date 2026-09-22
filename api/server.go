@@ -71,6 +71,9 @@ func (server *Server) setupRouter() {
 	// websocket server
 	authRoutes.GET("/chat", server.websocket.HandleConnection)
 
+	// serve static UI
+	router.Static("/ui", "./ui")
+
 	server.router = router
 }
 

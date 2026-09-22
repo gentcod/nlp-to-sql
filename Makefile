@@ -6,6 +6,8 @@ build:
 	gofmt -l -s -w .
 	go build -o bin/nlptosql .
 
+brun: build run
+
 sqlc-docker:
 	docker run --rm -v $(current_dir):/src -w /src sqlc/sqlc generate
 

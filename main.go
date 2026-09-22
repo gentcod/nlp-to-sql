@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
@@ -9,8 +10,9 @@ import (
 	conv "github.com/gentcod/nlp-to-sql/converter"
 	"github.com/gentcod/nlp-to-sql/cron"
 	db "github.com/gentcod/nlp-to-sql/internal/database"
+	"github.com/gentcod/nlp-to-sql/internal/mcp"
 
-	"github.com/gentcod/nlp-to-sql/rag"
+	"github.com/gentcod/nlp-to-sql/internal/rag"
 	"github.com/gentcod/nlp-to-sql/util"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -28,7 +30,26 @@ func main() {
 	}
 	defer conn.Close()
 
-	store := db.NewStore(conn)
+	store := db.Store(db.NewStore(conn))
+
+	// Initialize MCP Server (Phase 1)
+	credKey := make([]byte, 32) // In production, this should come from config
+	credManager, err := mcp.NewCredentialManager(credKey)
+	if err != nil {
+		log.Printf("Warning: failed to initialize MCP credential manager: %v\n", err)
+	}
+	auditLogger := mcp.NewAuditLogger()
+	mcpServer := mcp.NewMCPServer(store, credManager, auditLogger)
+
+	// Ensure the server can be initialized before proceeding
+	err = mcpServer.Initialize(context.Background(), mcp.ClientInfo{Name: "nlp-to-sql-host", Version: "1.0.0"})
+	if err != nil {
+		log.Printf("Warning: failed to initialize MCP server: %v\n", err)
+	} else {
+		log.Println("MCP Server Core initialized successfully.")
+	}
+
+	// Legacy Code
 
 	converter := conv.NewSQLConverter(rag.LLMOpts{
 		ApiKey:    config.ApiKey,

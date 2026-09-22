@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | NLP-to-SQL Enterprise</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/ui/styles.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- Background Elements -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+    <div class="bg-shape shape-3"></div>
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="auth-overlay active">
+        <div class="glass-panel auth-panel">
+            <div class="auth-header">
+                <i data-lucide="database" class="logo-icon"></i>
+                <h2>Nexus Data</h2>
+                <p>Authenticate to access the portal</p>
+            </div>
+            <form id="login-form">
+                <div class="input-group">
+                    <label>Email</label>
+                    <input type="email" id="email" required placeholder="admin@example.com">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary w-full">Sign In</button>
+            </form>
+            <div class="auth-footer">
+                <p>Or continue with <button id="btn-skip-auth" class="btn-text">Test Mode</button></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="glass-panel sidebar">
+            <div class="sidebar-header">
+                <i data-lucide="database" class="logo-icon"></i>
+                <h2>Nexus</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-target="chat-view">
+                    <i data-lucide="message-square"></i> Query Chat
+                </button>
+                <button class="nav-btn" data-target="dashboard-view">
+                    <i data-lucide="layout-dashboard"></i> Dashboard
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="connection-status">
+                    <div class="status-indicator offline" id="ws-status-dot"></div>
+                    <span id="ws-status-text">Disconnected</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- Chat View -->
+            <section id="chat-view" class="view-section active glass-panel">
+                <div class="view-header">
+                    <h3>Data Copilot</h3>
+                    <div class="db-selector">
+                        <select id="db-select" class="glass-input">
+                            <option value="postgres">PostgreSQL</option>
+                            <option value="mysql">MySQL</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="chat-container" id="chat-messages">
+                    <div class="message system">
+                        <div class="avatar"><i data-lucide="bot"></i></div>
+                        <div class="bubble">
+                            <p>Hello! I am your Nexus Data Copilot. Ask me anything about your database.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <form id="chat-form">
+                        <textarea id="chat-input" placeholder="e.g. How many users signed up this week?" rows="1"></textarea>
+                        <button type="submit" class="btn btn-icon btn-primary" id="send-btn">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Dashboard View -->
+            <section id="dashboard-view" class="view-section glass-panel">
+                <div class="view-header">
+                    <h3>Query Dashboard</h3>
+                    <button class="btn btn-secondary btn-sm" id="refresh-dashboard">
+                        <i data-lucide="refresh-cw"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <!-- Stats -->
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon"><i data-lucide="activity"></i></div>
+                        <div class="stat-info">
+                            <h4>Total Queries</h4>
+                            <h2 id="stat-total-queries">0</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon"><i data-lucide="zap"></i></div>
+                        <div class="stat-info">
+                            <h4>Avg Latency</h4>
+                            <h2 id="stat-latency">0ms</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon"><i data-lucide="shield-check"></i></div>
+                        <div class="stat-info">
+                            <h4>Security Scans</h4>
+                            <h2 id="stat-security">100%</h2>
+                        </div>
+                    </div>
+
+                    <!-- History Table -->
+                    <div class="table-container glass-panel">
+                        <h4>Recent Queries</h4>
+                        <table class="glass-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Natural Language</th>
+                                    <th>Generated SQL</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="query-history-body">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">No queries yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/ui/app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

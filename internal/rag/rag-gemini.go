@@ -12,13 +12,51 @@ type GeminiLLM struct {
 	Opts     LLMOpts
 	Query    string
 	Response string
+	Model    *genai.GenerativeModel
 }
+
+type Model struct{ genai.GenerativeModel }
 
 // NewGeminiLLM is used to initalize a LLM that communicates with Google's Gemini API.
 func NewGeminiLLM(opts LLMOpts) LLM {
 	return &GeminiLLM{
 		Opts: opts,
 	}
+}
+
+func initGenModelWithCachedContent(Opts LLMOpts) (*Model, error) {
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(Opts.ApiKey))
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	parts := []genai.Part{
+		genai.Text("Generate a sql query from the next stream of input or text"),
+		genai.Text("Only SELECT queries or queries to read data should be generated"),
+		genai.Text(fmt.Sprintf("The Schema for the database is in the form: %v", Opts.Context)),
+		genai.Text("Only queries based on the database schema should be generated"),
+		genai.Text("Omit fields or columns with sensitive data such as password, hashed_password or similar fields no matter the condtions stated in corresponding statements."),
+		genai.Text("If none of the conditions are satisfied, return a custom error response"),
+		genai.Text("If all the conditions are satisfied, return only the SQL query as a response"),
+		genai.Text("Return the respone as a plain text rather than a block of code and remove the indentations~"),
+	}
+
+	argcc := &genai.CachedContent{
+		Model:             "gemini-1.5-flash-001",
+		SystemInstruction: genai.NewUserContent(genai.Text("You are an expert analyzing transcripts.")),
+		Contents:          []*genai.Content{genai.NewUserContent(parts...)},
+	}
+	cc, err := client.CreateCachedContent(ctx, argcc)
+	if err != nil {
+		return nil, err
+	}
+	defer client.DeleteCachedContent(ctx, cc.Name)
+
+	modelWithCache := &Model{*client.GenerativeModelFromCachedContent(cc)}
+
+	return modelWithCache, nil
 }
 
 func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
@@ -96,4 +134,28 @@ func getGeminiResponse(resp *genai.GenerateContentResponse) (string, error) {
 		}
 	}
 	return res, nil
+}
+
+func (llm *GeminiLLM) GetModelContext() (interface{}, error) {
+	model, err := initGenModelWithCachedContent(llm.Opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return model, err
+}
+
+func (model *Model) GenerateCachedResponse(prompt string) (string, error) {
+	ctx := context.Background()
+	res, err := model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", err
+	}
+
+	// printResponse(resp)
+	resp, err := getGeminiResponse(res)
+	if err != nil {
+		return "", err
+	}
+	return resp, nil
 }

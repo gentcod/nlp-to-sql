@@ -77,3 +77,7 @@ func (llm *OpenAiLLM) GenerateResponse(data interface{}, que string) (string, er
 
 	return llm.Response, nil
 }
+
+func (llm *OpenAiLLM) GetModelContext() (interface{}, error) {
+	return nil, nil
+}
