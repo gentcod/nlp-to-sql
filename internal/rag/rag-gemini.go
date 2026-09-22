@@ -3,19 +3,23 @@ package rag
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
+	"google.golang.org/genai"
 )
 
 type GeminiLLM struct {
 	Opts     LLMOpts
 	Query    string
 	Response string
-	Model    *genai.GenerativeModel
+	Model    string
 }
 
-type Model struct{ genai.GenerativeModel }
+type Model struct {
+	client     *genai.Client
+	model      string
+	cachedName string
+}
 
 // NewGeminiLLM is used to initalize a LLM that communicates with Google's Gemini API.
 func NewGeminiLLM(opts LLMOpts) LLM {
@@ -26,63 +30,33 @@ func NewGeminiLLM(opts LLMOpts) LLM {
 
 func initGenModelWithCachedContent(Opts LLMOpts) (*Model, error) {
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(Opts.ApiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: Opts.ApiKey})
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
 
-	parts := []genai.Part{
-		genai.Text("Generate a sql query from the next stream of input or text"),
-		genai.Text("Only SELECT queries or queries to read data should be generated"),
-		genai.Text(fmt.Sprintf("The Schema for the database is in the form: %v", Opts.Context)),
-		genai.Text("Only queries based on the database schema should be generated"),
-		genai.Text("Omit fields or columns with sensitive data such as password, hashed_password or similar fields no matter the condtions stated in corresponding statements."),
-		genai.Text("If none of the conditions are satisfied, return a custom error response"),
-		genai.Text("If all the conditions are satisfied, return only the SQL query as a response"),
-		genai.Text("Return the respone as a plain text rather than a block of code and remove the indentations~"),
-	}
-
-	argcc := &genai.CachedContent{
-		Model:             "gemini-1.5-flash-001",
-		SystemInstruction: genai.NewUserContent(genai.Text("You are an expert analyzing transcripts.")),
-		Contents:          []*genai.Content{genai.NewUserContent(parts...)},
-	}
-	cc, err := client.CreateCachedContent(ctx, argcc)
+	cc, err := client.Caches.Create(ctx, "gemini-1.5-flash-001", &genai.CreateCachedContentConfig{
+		SystemInstruction: genai.NewContentFromText("You are an expert analyzing transcripts.", genai.RoleUser),
+		Contents:          []*genai.Content{genai.NewContentFromText(queryInstructions(Opts.Context), genai.RoleUser)},
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer client.DeleteCachedContent(ctx, cc.Name)
 
-	modelWithCache := &Model{*client.GenerativeModelFromCachedContent(cc)}
-
-	return modelWithCache, nil
+	return &Model{client: client, model: "gemini-1.5-flash-001", cachedName: cc.Name}, nil
 }
 
 func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(llm.Opts.ApiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: llm.Opts.ApiKey})
 	if err != nil {
 		return llm.Query, err
 	}
-	defer client.Close()
-
-	model := client.GenerativeModel(llm.Opts.Model)
-	parts := []genai.Part{
-		genai.Text("Generate a sql query from the next stream of input or text"),
-		genai.Text("Only SELECT queries or queries to read data should be generated"),
-		genai.Text(fmt.Sprintf("The Schema for the database is in the form: %v", llm.Opts.Context)),
-		genai.Text("Only queries based on the database schema should be generated"),
-		genai.Text("Omit fields or columns with sensitive data such as password, hashed_password or similar fields no matter the condtions stated in corresponding statements."),
-		genai.Text("If none of the conditions are satisfied, return a custom error response"),
-		genai.Text("If all the conditions are satisfied, return only the SQL query as a response"),
-		genai.Text("Return the respone as a plain text rather than a block of code and remove the indentations~"),
-	}
-
-	model.SystemInstruction = genai.NewUserContent(parts...)
-	cs := model.StartChat()
-
-	res, err := cs.SendMessage(ctx, genai.Text(que))
+	res, err := client.Models.GenerateContent(ctx, llm.Opts.Model,
+		[]*genai.Content{genai.NewContentFromText(que, genai.RoleUser)},
+		&genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(queryInstructions(llm.Opts.Context), genai.RoleUser),
+		})
 	if err != nil {
 		return llm.Query, err
 	}
@@ -96,23 +70,19 @@ func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
 
 func (llm *GeminiLLM) GenerateResponse(data interface{}, que string) (string, error) {
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(llm.Opts.ApiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: llm.Opts.ApiKey})
 	if err != nil {
 		return llm.Response, err
 	}
-	defer client.Close()
-
-	model := client.GenerativeModel(llm.Opts.Model)
-	parts := []genai.Part{
-		genai.Text("Generate a summary from the next stream of input or text"),
-		genai.Text(fmt.Sprintf("Use these data: %v retrieved from the database in a conversational manner", data)),
-		genai.Text(fmt.Sprintf("Use this as context for the data returned: %v", que)),
-	}
-
-	model.SystemInstruction = genai.NewUserContent(parts...)
-	cs := model.StartChat()
-
-	res, err := cs.SendMessage(ctx, genai.Text("What is the summary of the data?"))
+	res, err := client.Models.GenerateContent(ctx, llm.Opts.Model,
+		[]*genai.Content{genai.NewContentFromText("What is the summary of the data?", genai.RoleUser)},
+		&genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(strings.Join([]string{
+				"Generate a summary from the next stream of input or text",
+				fmt.Sprintf("Use these data: %v retrieved from the database in a conversational manner", data),
+				fmt.Sprintf("Use this as context for the data returned: %v", que),
+			}, "\n"), genai.RoleUser),
+		})
 	if err != nil {
 		return llm.Response, err
 	}
@@ -125,15 +95,20 @@ func (llm *GeminiLLM) GenerateResponse(data interface{}, que string) (string, er
 }
 
 func getGeminiResponse(resp *genai.GenerateContentResponse) (string, error) {
-	res := ""
-	for _, cand := range resp.Candidates {
-		if cand.Content != nil {
-			for _, part := range cand.Content.Parts {
-				res = fmt.Sprintf("%v", part)
-			}
-		}
-	}
-	return res, nil
+	return resp.Text(), nil
+}
+
+func queryInstructions(schema any) string {
+	return strings.Join([]string{
+		"Generate a sql query from the next stream of input or text",
+		"Only SELECT queries or queries to read data should be generated",
+		fmt.Sprintf("The Schema for the database is in the form: %v", schema),
+		"Only queries based on the database schema should be generated",
+		"Omit fields or columns with sensitive data such as password, hashed_password or similar fields no matter the conditions stated in corresponding statements.",
+		"If none of the conditions are satisfied, return a custom error response",
+		"If all the conditions are satisfied, return only the SQL query as a response",
+		"Return the response as plain text rather than a block of code and remove the indentations",
+	}, "\n")
 }
 
 func (llm *GeminiLLM) GetModelContext() (interface{}, error) {
@@ -147,12 +122,17 @@ func (llm *GeminiLLM) GetModelContext() (interface{}, error) {
 
 func (model *Model) GenerateCachedResponse(prompt string) (string, error) {
 	ctx := context.Background()
-	res, err := model.GenerateContent(ctx, genai.Text(prompt))
+	res, err := model.client.Models.GenerateContent(ctx, model.model,
+		[]*genai.Content{genai.NewContentFromText(prompt, genai.RoleUser)},
+		&genai.GenerateContentConfig{CachedContent: model.cachedName})
 	if err != nil {
 		return "", err
 	}
+	_, deleteErr := model.client.Caches.Delete(ctx, model.cachedName, nil)
+	if deleteErr != nil {
+		return "", deleteErr
+	}
 
-	// printResponse(resp)
 	resp, err := getGeminiResponse(res)
 	if err != nil {
 		return "", err

@@ -33,7 +33,7 @@ func (converter *SQLConverter) Convert(conn *sql.DB, llmType, que string, schema
 		return converter.Response, fmt.Errorf("error getting model context: %v", err)
 	}
 
-	model, ok := mdl.(rag.Model)
+	model, ok := mdl.(*rag.Model)
 	if !ok {
 		return converter.Response, fmt.Errorf("error casting Gemini RAG model: %v", err)
 	}

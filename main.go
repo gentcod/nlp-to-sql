@@ -50,7 +50,6 @@ func main() {
 	}
 
 	// Legacy Code
-
 	converter := conv.NewSQLConverter(rag.LLMOpts{
 		ApiKey:    config.ApiKey,
 		OrgId:     config.OrgId,
