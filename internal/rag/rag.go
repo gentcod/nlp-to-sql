@@ -10,6 +10,8 @@ type LLM interface {
 	// to return response in a textual or conversational manner
 	// using the question asked for a furher context-aware response
 	GenerateResponse(data any, que string) (string, error)
+
+	GetModelContext() (interface{}, error)
 }
 
 // LLMOpts contains fields needed to connect to an LLM
