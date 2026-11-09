@@ -2,6 +2,24 @@ package mcp
 
 import "time"
 
+// ServerState represents the explicit lifecycle state of the MCPServer
+type ServerState string
+
+const (
+	ServerStateUninitialized ServerState = "UNINITIALIZED"
+	ServerStateReady         ServerState = "READY"
+	ServerStateShuttingDown  ServerState = "SHUTTING_DOWN"
+)
+
+// CacheState represents the explicit TTL state of a cached resource or credential
+type CacheState string
+
+const (
+	CacheStateMissing CacheState = "MISSING"
+	CacheStateFresh   CacheState = "FRESH"
+	CacheStateExpired CacheState = "EXPIRED"
+)
+
 // ClientInfo represents a connecting client
 type ClientInfo struct {
 	Name    string `json:"name"`
@@ -59,11 +77,14 @@ type ToolCall struct {
 	Arguments map[string]interface{} `json:"arguments"`
 }
 
-// ToolResult represents a tool execution result
+// ToolResult represents a tool execution result with rich agent/developer metadata
 type ToolResult struct {
-	Content   interface{} `json:"content"`
-	IsError   bool        `json:"isError,omitempty"`
-	Timestamp time.Time   `json:"timestamp"`
+	Content         interface{} `json:"content"`
+	IsError         bool        `json:"isError,omitempty"`
+	Stage           string      `json:"stage,omitempty"`
+	RemediationHint string      `json:"remediationHint,omitempty"`
+	LatencyMs       int64       `json:"latencyMs,omitempty"`
+	Timestamp       time.Time   `json:"timestamp"`
 }
 
 // TextContent represents text result

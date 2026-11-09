@@ -5,15 +5,17 @@ import (
 
 	"github.com/gentcod/nlp-to-sql/chat"
 	db "github.com/gentcod/nlp-to-sql/internal/database"
+	"github.com/gentcod/nlp-to-sql/internal/mcp"
 	"github.com/gentcod/nlp-to-sql/token"
 	"github.com/gentcod/nlp-to-sql/util"
 	"github.com/gin-gonic/gin"
 )
 
-// Server serves HTTP requests for our banking service
+// Server serves HTTP requests for our service
 type Server struct {
 	config              util.Config
 	store               db.Store
+	mcpServer           *mcp.MCPServer
 	tokenGenerator      token.Generator
 	adminTokenGenerator token.Generator
 	websocket           *chat.WebSocketServer
@@ -71,6 +73,14 @@ func (server *Server) setupRouter() {
 	// websocket server
 	authRoutes.GET("/chat", server.websocket.HandleConnection)
 
+	// MCP Enterprise v2 API Gateway (elevates DX and AX while keeping v1 routes intact)
+	v2MCPRoutes := router.Group("/api/v2/mcp")
+	v2MCPRoutes.GET("/info", server.handleMCPInfo)
+	v2MCPRoutes.GET("/resources", server.handleMCPListResources)
+	v2MCPRoutes.GET("/resources/read", server.handleMCPReadResource)
+	v2MCPRoutes.GET("/tools", server.handleMCPListTools)
+	v2MCPRoutes.POST("/tools/call", server.handleMCPCallTool)
+
 	// serve static UI
 	router.Static("/ui", "./ui")
 
@@ -82,7 +92,7 @@ func (server *Server) Start(address string) error {
 	return server.router.Run(address)
 }
 
-// apiErrorResponse returns a custom error response.
+// apiServerResponse returns a custom success response.
 func apiServerResponse(msg string, data interface{}) gin.H {
 	return gin.H{
 		"status":  "success",
