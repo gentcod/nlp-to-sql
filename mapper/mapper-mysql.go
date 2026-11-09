@@ -2,7 +2,8 @@ package mapper
 
 import (
 	"database/sql"
-	// "fmt"
+
+	"github.com/gentcod/nlp-to-sql/util"
 )
 
 type MySQLMapper struct {
@@ -54,7 +55,10 @@ func (mapper *MySQLMapper) getColumns(db *sql.DB, dbName string, tableName strin
 		if err := rows.Scan(&columnName, &dataType); err != nil {
 			return nil, err
 		}
-		columns[columnName] = dataType
+		// Layer 1 Defense: Exclude sensitive columns at schema mapping time
+		if !util.IsSensitiveIdentifier(columnName) {
+			columns[columnName] = dataType
+		}
 	}
 	return columns, nil
 }
@@ -74,6 +78,5 @@ func (mapper *MySQLMapper) MapSchema(db *sql.DB, dbName string) (map[string]map[
 		}
 		mapper.Schema[table] = columns
 	}
-	// fmt.Println("Schema: ",mapper.Schema)
 	return mapper.Schema, nil
 }

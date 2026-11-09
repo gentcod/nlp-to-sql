@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"sync"
 
 	database "github.com/gentcod/nlp-to-sql/internal/database"
 	"github.com/robfig/cron/v3"
@@ -14,13 +16,25 @@ import (
 const (
 	cronschedule = "@monthly"
 	testschedule = "@every 30s"
-	logfile      = "/cron.txt"
+	logfile      = "cron.txt"
+)
+
+// JobState represents the explicit execution state of the background cleanup cron
+type JobState string
+
+const (
+	JobStateUnscheduled JobState = "UNSCHEDULED"
+	JobStateIdle        JobState = "IDLE"
+	JobStateRunning     JobState = "RUNNING"
+	JobStateFailed      JobState = "FAILED"
 )
 
 type DBCron struct {
 	store  database.Store
 	c      *cron.Cron
 	config CronConfig
+	state  JobState
+	mu     sync.RWMutex
 }
 
 type CronConfig struct {
@@ -35,31 +49,58 @@ func NewDBCron(store database.Store, config CronConfig) *DBCron {
 		store:  store,
 		config: config,
 		c:      c,
+		state:  JobStateUnscheduled,
 	}
 }
 
-func setupLogging(logPath string) *os.File {
-	logFile := fmt.Sprintf("%s%s", logPath, logfile)
+// State returns the current explicit state of the DBCron scheduler
+func (dbcron *DBCron) State() JobState {
+	dbcron.mu.RLock()
+	defer dbcron.mu.RUnlock()
+	return dbcron.state
+}
+
+// newDedicatedLogger opens the cron log file and returns a scoped logger so closing the file never corrupts global log output.
+func newDedicatedLogger(logPath string) (*log.Logger, *os.File) {
+	if logPath == "" {
+		logPath = "./logs"
+	}
+	_ = os.MkdirAll(logPath, 0755)
+	logFile := filepath.Join(logPath, logfile)
 	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		log.Fatal(err)
+		return log.Default(), nil
 	}
-	log.SetOutput(file)
-	return file
+	return log.New(file, "[CRON] ", log.LstdFlags), file
 }
 
 func (dbcron *DBCron) runCleanup(batchSize int) {
-	logFile := setupLogging(dbcron.config.LogPath)
-	defer logFile.Close()
+	dbcron.mu.Lock()
+	if dbcron.state == JobStateRunning {
+		dbcron.mu.Unlock()
+		return
+	}
+	dbcron.state = JobStateRunning
+	dbcron.mu.Unlock()
 
-	var err error
+	logger, logFile := newDedicatedLogger(dbcron.config.LogPath)
+	if logFile != nil {
+		defer logFile.Close()
+	}
+
 	totalDeleted, err := dbcron.store.DeleteExpDeletedUserRecords(context.Background(), batchSize)
 	if err != nil {
-		err = fmt.Errorf("error during cleanup: %v", err)
-		log.Printf("Eror running cleanup job -> %v. Total records deleted: %d", err, totalDeleted)
-	} else {
-		log.Printf("Cleanup job completed successfully. Total records deleted: %d", totalDeleted)
+		dbcron.mu.Lock()
+		dbcron.state = JobStateFailed
+		dbcron.mu.Unlock()
+		logger.Printf("Error running cleanup job -> error during cleanup: %v. Total records deleted: %d", err, totalDeleted)
+		return
 	}
+
+	dbcron.mu.Lock()
+	dbcron.state = JobStateIdle
+	dbcron.mu.Unlock()
+	logger.Printf("Cleanup job completed successfully. Total records deleted: %d", totalDeleted)
 }
 
 func (dbcron *DBCron) InitCron() error {
@@ -74,6 +115,10 @@ func (dbcron *DBCron) InitCron() error {
 	if err != nil {
 		return fmt.Errorf("error initializing and scheduling cleanup job: %v", err)
 	}
+
+	dbcron.mu.Lock()
+	dbcron.state = JobStateIdle
+	dbcron.mu.Unlock()
 
 	log.Print("Cleanup job scheduled successfully")
 

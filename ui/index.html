@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus | NLP-to-SQL Enterprise</title>
+    <title>NLP_TO_SQL | Enterprise Copilot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -16,12 +16,12 @@
     <div class="bg-shape shape-2"></div>
     <div class="bg-shape shape-3"></div>
 
-    <!-- Auth Overlay -->
+    <!-- Step 1: Auth Overlay -->
     <div id="auth-overlay" class="auth-overlay active">
         <div class="glass-panel auth-panel">
             <div class="auth-header">
                 <i data-lucide="database" class="logo-icon"></i>
-                <h2>Nexus Data</h2>
+                <h2>NLP_TO_SQL</h2>
                 <p>Authenticate to access the portal</p>
             </div>
             <form id="login-form">
@@ -41,13 +41,62 @@
         </div>
     </div>
 
+    <!-- Step 2: Database Connection Configuration Modal (Required before WebSocket connects) -->
+    <div id="db-config-overlay" class="auth-overlay">
+        <div class="glass-panel auth-panel" style="max-width: 480px;">
+            <div class="auth-header">
+                <i data-lucide="server" class="logo-icon"></i>
+                <h2>Database Connection Setup</h2>
+                <p>Provide target database configuration before connecting to the WebSocket server</p>
+            </div>
+            <form id="db-config-form">
+                <div class="input-group" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; background: rgba(255,255,255,0.04); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div>
+                        <label for="use-server-db" style="margin: 0; font-weight: 600; cursor: pointer;">Query Server Host Database</label>
+                        <small style="display: block; color: var(--text-secondary); font-size: 0.78rem;">Enable this leg to query the database used to initialize the server</small>
+                    </div>
+                    <input type="checkbox" id="use-server-db" style="width: 18px; height: 18px; cursor: pointer;">
+                </div>
+
+                <div id="custom-db-fields">
+                    <div class="input-group">
+                        <label>Database Engine (`db_type`)</label>
+                        <select id="cfg-db-type" class="glass-input w-full" style="width: 100%; padding: 0.65rem;">
+                            <option value="postgres">PostgreSQL</option>
+                            <option value="mysql">MySQL</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Database Name (`db_name`)</label>
+                        <input type="text" id="cfg-db-name" placeholder="e.g. analytics_prod">
+                    </div>
+                    <div class="input-group">
+                        <label>Connection URL (`db_url`)</label>
+                        <input type="password" id="cfg-db-url" placeholder="postgresql://user:pass@localhost:5432/dbname?sslmode=disable">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>LLM Provider (`llm_type`)</label>
+                    <select id="cfg-llm-type" class="glass-input w-full" style="width: 100%; padding: 0.65rem;">
+                        <option value="muse" selected>Muse (Meta Responses API)</option>
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">Connect to WebSocket Server</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Main App Container -->
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="glass-panel sidebar">
             <div class="sidebar-header">
                 <i data-lucide="database" class="logo-icon"></i>
-                <h2>Nexus</h2>
+                <h2>NLP_TO_SQL</h2>
             </div>
             <nav class="sidebar-nav">
                 <button class="nav-btn active" data-target="chat-view">
@@ -60,7 +109,7 @@
             <div class="sidebar-footer">
                 <div class="connection-status">
                     <div class="status-indicator offline" id="ws-status-dot"></div>
-                    <span id="ws-status-text">Disconnected</span>
+                    <span id="ws-status-text">Not Configured</span>
                 </div>
             </div>
         </aside>
@@ -72,11 +121,19 @@
             <section id="chat-view" class="view-section active glass-panel">
                 <div class="view-header">
                     <h3>Data Copilot</h3>
-                    <div class="db-selector">
-                        <select id="db-select" class="glass-input">
+                    <div class="db-selector" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="llm-select" class="glass-input" title="Select LLM Provider">
+                            <option value="muse" selected>Muse</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="openai">OpenAI</option>
+                        </select>
+                        <select id="db-select" class="glass-input" title="Select Database Engine">
                             <option value="postgres">PostgreSQL</option>
                             <option value="mysql">MySQL</option>
                         </select>
+                        <button type="button" id="btn-reconfigure-db" class="btn btn-secondary btn-sm" title="Configure Database Connection">
+                            <i data-lucide="settings"></i> DB Config
+                        </button>
                     </div>
                 </div>
                 
@@ -84,7 +141,7 @@
                     <div class="message system">
                         <div class="avatar"><i data-lucide="bot"></i></div>
                         <div class="bubble">
-                            <p>Hello! I am your Nexus Data Copilot. Ask me anything about your database.</p>
+                            <p>Hello! I am your NLP_TO_SQL Copilot. Configure your target database connection to begin querying safely.</p>
                         </div>
                     </div>
                 </div>

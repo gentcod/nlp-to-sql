@@ -2,6 +2,8 @@ package mapper
 
 import (
 	"database/sql"
+
+	"github.com/gentcod/nlp-to-sql/util"
 )
 
 type PQMapper struct {
@@ -57,7 +59,10 @@ func (mapper *PQMapper) getColumns(db *sql.DB, dbName string, tableName string) 
 		if err := rows.Scan(&columnName, &dataType); err != nil {
 			return nil, err
 		}
-		columns[columnName] = dataType
+		// Layer 1 Defense: Exclude sensitive columns at schema mapping time
+		if !util.IsSensitiveIdentifier(columnName) {
+			columns[columnName] = dataType
+		}
 	}
 	return columns, nil
 }
