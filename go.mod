@@ -16,8 +16,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.12.1
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	google.golang.org/genai v1.77.0
 	golang.org/x/crypto v0.58.0
+	google.golang.org/genai v1.77.0
 )
 
 require (
