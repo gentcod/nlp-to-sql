@@ -18,10 +18,10 @@ dropdb:
 	docker exec -it postgres12 dropdb dbchat
 
 gooseup:
-	goose -dir sql/schemas postgres postgres://root:secret@localhost:5431/dbchat?sslmode=disable up
+	goose -dir sql/schemas postgres postgres://dbchat:secret@localhost:5431/dbchat?sslmode=disable up
 
 goosedown:
-	goose -dir sql/schemas postgres postgres://root:secret@localhost:5431/dbchat?sslmode=disable down
+	goose -dir sql/schemas postgres postgres://dbchat:secret@localhost:5431/dbchat?sslmode=disable down
 
 test:
 	go test -v -cover -short ./...
