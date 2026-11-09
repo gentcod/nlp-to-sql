@@ -2,17 +2,34 @@ package mcp
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	db "github.com/gentcod/nlp-to-sql/internal/database"
+	mp "github.com/gentcod/nlp-to-sql/mapper"
 )
 
-// ResourceManager manages MCP resources
+type cachedResourceEntry struct {
+	data      interface{}
+	expiresAt time.Time
+}
+
+// DatabaseConfig holds optional runtime DB connection metadata for dynamic resource resolution
+type DatabaseConfig struct {
+	Conn   *sql.DB
+	Driver string
+	Name   string
+}
+
+// ResourceManager manages MCP resources with explicit TTL caching and schema mapping
 type ResourceManager struct {
 	store         db.Store
-	resourceCache map[string]interface{}
+	dbConfig      DatabaseConfig
+	resourceCache map[string]cachedResourceEntry
+	cacheTTL      time.Duration
 	cacheMutex    sync.RWMutex
 	subscriptions map[string][]chan Resource
 	subMutex      sync.RWMutex
@@ -22,9 +39,46 @@ type ResourceManager struct {
 func NewResourceManager(store db.Store) *ResourceManager {
 	return &ResourceManager{
 		store:         store,
-		resourceCache: make(map[string]interface{}),
+		resourceCache: make(map[string]cachedResourceEntry),
+		cacheTTL:      15 * time.Minute,
 		subscriptions: make(map[string][]chan Resource),
 	}
+}
+
+// ConfigureDatabase attaches a live *sql.DB connection and dialect metadata for real schema inspection
+func (rm *ResourceManager) ConfigureDatabase(cfg DatabaseConfig) {
+	rm.cacheMutex.Lock()
+	rm.dbConfig = cfg
+	rm.resourceCache = make(map[string]cachedResourceEntry)
+	rm.cacheMutex.Unlock()
+}
+
+// GetCacheState inspects the explicit state of a cached URI
+func (rm *ResourceManager) GetCacheState(uri string) CacheState {
+	rm.cacheMutex.RLock()
+	entry, ok := rm.resourceCache[uri]
+	rm.cacheMutex.RUnlock()
+
+	if !ok {
+		return CacheStateMissing
+	}
+	if time.Now().After(entry.expiresAt) {
+		return CacheStateExpired
+	}
+	return CacheStateFresh
+}
+
+// InvalidateResource evicts a resource from cache and notifies subscribers
+func (rm *ResourceManager) InvalidateResource(uri string) {
+	rm.cacheMutex.Lock()
+	delete(rm.resourceCache, uri)
+	rm.cacheMutex.Unlock()
+
+	rm.PublishResourceUpdate(uri, Resource{
+		URI:     uri,
+		Name:    uri,
+		Updated: time.Now(),
+	})
 }
 
 // ListResources lists available resources
@@ -47,12 +101,14 @@ func (rm *ResourceManager) ListResources(ctx context.Context, cursor string) ([]
 	return resources, "", nil
 }
 
-// ReadResource reads a specific resource
+// ReadResource reads a specific resource with explicit cache state transitions (MISSING -> FRESH -> EXPIRED)
 func (rm *ResourceManager) ReadResource(ctx context.Context, uri string) (interface{}, error) {
 	rm.cacheMutex.RLock()
-	if cached, ok := rm.resourceCache[uri]; ok {
-		rm.cacheMutex.RUnlock()
-		return cached, nil
+	if entry, ok := rm.resourceCache[uri]; ok {
+		if time.Now().Before(entry.expiresAt) {
+			rm.cacheMutex.RUnlock()
+			return entry.data, nil
+		}
 	}
 	rm.cacheMutex.RUnlock()
 
@@ -83,9 +139,12 @@ func (rm *ResourceManager) ReadResource(ctx context.Context, uri string) (interf
 		return nil, err
 	}
 
-	// Cache result
+	// Cache result with TTL
 	rm.cacheMutex.Lock()
-	rm.resourceCache[uri] = resource
+	rm.resourceCache[uri] = cachedResourceEntry{
+		data:      resource,
+		expiresAt: time.Now().Add(rm.cacheTTL),
+	}
 	rm.cacheMutex.Unlock()
 
 	return resource, nil
@@ -93,17 +152,56 @@ func (rm *ResourceManager) ReadResource(ctx context.Context, uri string) (interf
 
 // readDatabaseResource reads database information
 func (rm *ResourceManager) readDatabaseResource(ctx context.Context, path string) (interface{}, error) {
-	// Implementation would connect to database and retrieve metadata
+	rm.cacheMutex.RLock()
+	cfg := rm.dbConfig
+	rm.cacheMutex.RUnlock()
+
+	dbName := path
+	if dbName == "" && cfg.Name != "" {
+		dbName = cfg.Name
+	}
+
+	driver := cfg.Driver
+	if driver == "" {
+		driver = "postgres"
+	}
+
 	return map[string]interface{}{
-		"type":  "database",
-		"name":  path,
-		"ready": true,
+		"type":   "database",
+		"name":   dbName,
+		"driver": driver,
+		"ready":  true,
 	}, nil
 }
 
-// readSchemaResource reads schema information
+// readSchemaResource reads schema information using the project's Mapper if a live DB is configured
 func (rm *ResourceManager) readSchemaResource(ctx context.Context, path string) (interface{}, error) {
-	// Implementation would retrieve schema from database
+	rm.cacheMutex.RLock()
+	cfg := rm.dbConfig
+	rm.cacheMutex.RUnlock()
+
+	if cfg.Conn != nil && cfg.Driver != "" {
+		mapper := mp.InitMapper(cfg.Driver)
+		if mapper != nil {
+			dbName := path
+			if dbName == "" {
+				dbName = cfg.Name
+			}
+			schemaMap, err := mapper.MapSchema(cfg.Conn, dbName)
+			if err == nil {
+				tables := make([]string, 0, len(schemaMap))
+				for tbl := range schemaMap {
+					tables = append(tables, tbl)
+				}
+				return map[string]interface{}{
+					"type":   "schema",
+					"tables": tables,
+					"schema": schemaMap,
+				}, nil
+			}
+		}
+	}
+
 	return map[string]interface{}{
 		"type":   "schema",
 		"tables": []string{},
@@ -112,9 +210,29 @@ func (rm *ResourceManager) readSchemaResource(ctx context.Context, path string) 
 
 // readTableResource reads table information
 func (rm *ResourceManager) readTableResource(ctx context.Context, path string) (interface{}, error) {
-	// Implementation would retrieve table structure
+	rm.cacheMutex.RLock()
+	cfg := rm.dbConfig
+	rm.cacheMutex.RUnlock()
+
+	if cfg.Conn != nil && cfg.Driver != "" {
+		mapper := mp.InitMapper(cfg.Driver)
+		if mapper != nil {
+			schemaMap, err := mapper.MapSchema(cfg.Conn, cfg.Name)
+			if err == nil {
+				if cols, ok := schemaMap[path]; ok {
+					return map[string]interface{}{
+						"type":    "table",
+						"table":   path,
+						"columns": cols,
+					}, nil
+				}
+			}
+		}
+	}
+
 	return map[string]interface{}{
 		"type":    "table",
+		"table":   path,
 		"columns": []string{},
 	}, nil
 }

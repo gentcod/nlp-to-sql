@@ -16,6 +16,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// SessionState represents the explicit state machine of a WebSocket client connection
+type SessionState string
+
+const (
+	StateConnected      SessionState = "CONNECTED"
+	StateInitializingDB SessionState = "INITIALIZING_DB"
+	StateReady          SessionState = "READY"
+	StateExecutingQuery SessionState = "EXECUTING_QUERY"
+	StateClosing        SessionState = "CLOSING"
+	StateClosed         SessionState = "CLOSED"
+)
+
 // Message defines the format for incoming message from client.
 type Message struct {
 	Type      string          `json:"type"`
@@ -23,16 +35,19 @@ type Message struct {
 	Timestamp time.Time       `json:"timestamp"`
 }
 
-// Response defines the server response format.
+// Response defines the server response format (backward-compatible with optional structured Payload & State).
 type Response struct {
-	Type      string    `json:"type"`
-	Status    string    `json:"status"`
-	Message   string    `json:"message"`
-	Timestamp time.Time `json:"timestamp"`
+	Type      string       `json:"type"`
+	Status    string       `json:"status"`
+	Message   string       `json:"message"`
+	Payload   interface{}  `json:"payload,omitempty"`
+	State     SessionState `json:"state,omitempty"`
+	Timestamp time.Time    `json:"timestamp"`
 }
 
 // WebSocket server specifications.
 type WebSocketServer struct {
+	config    util.Config
 	converter conv.Converter
 	upgrader  websocket.Upgrader
 	clients   map[*Client]bool
@@ -42,6 +57,7 @@ type WebSocketServer struct {
 // NewWebSocketServer creates a new WebSocket server.
 func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocketServer, error) {
 	return &WebSocketServer{
+		config: config,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -54,7 +70,7 @@ func NewWebSocketServer(config util.Config, converter conv.Converter) (*WebSocke
 	}, nil
 }
 
-// handleConnection manages a new WebSocket connection
+// HandleConnection manages a new WebSocket connection
 func (srv *WebSocketServer) HandleConnection(c *gin.Context) {
 	conn, err := srv.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -65,10 +81,12 @@ func (srv *WebSocketServer) HandleConnection(c *gin.Context) {
 		return
 	}
 
-	// Create a new client
+	// Create a new client in the explicit CONNECTED state
 	client := &Client{
 		conn:      conn,
+		config:    srv.config,
 		converter: srv.converter,
+		state:     StateConnected,
 		send:      make(chan Response, 256),
 		receive:   make(chan Message, 256),
 		close:     make(chan struct{}),
@@ -89,18 +107,7 @@ func (srv *WebSocketServer) HandleConnection(c *gin.Context) {
 // readPump handles incoming WebSocket messages.
 func (c *Client) readPump(srv *WebSocketServer) {
 	defer func() {
-		c.conn.Close()
-		if c.dbConn != nil {
-			c.dbConn.Close()
-		}
-		c.isAlive = false
-
-		c.conn = nil
-		c.dbConn = nil
-		c.dbSchema = nil
-		close(c.close)
-		close(c.send)
-		close(c.receive)
+		c.shutdown()
 
 		srv.mutex.Lock()
 		delete(srv.clients, c)
@@ -123,7 +130,6 @@ func (c *Client) readPump(srv *WebSocketServer) {
 				websocket.CloseAbnormalClosure,
 				websocket.CloseNormalClosure,
 			) {
-				c.isAlive = false
 				break
 			}
 			log.Printf("WebSocket read error: %v", err)
@@ -138,24 +144,22 @@ func (c *Client) readPump(srv *WebSocketServer) {
 
 		err = json.Unmarshal(msgData, &msg)
 		if err != nil {
-			errResponse := Response{
+			c.safeSend(Response{
 				Type:      string(rune(msgType)),
 				Status:    "error",
 				Message:   fmt.Sprintf(`invalid message format: %v`, msg.Type),
+				State:     c.GetState(),
 				Timestamp: time.Now(),
-			}
-
-			select {
-			case c.send <- errResponse:
-			default:
-				log.Println("Failed to send error response")
-			}
-
+			})
 			continue
 		}
 
 		msg.Timestamp = time.Now()
-		c.receive <- msg
+		select {
+		case c.receive <- msg:
+		case <-c.close:
+			return
+		}
 	}
 }
 
@@ -164,32 +168,32 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(50 * time.Second)
 	defer func() {
 		ticker.Stop()
-		if c.conn != nil {
-			c.conn.Close()
-		}
-		if c.dbConn != nil {
-			c.dbConn.Close()
-		}
+		c.shutdown()
 	}()
 
 	for {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if c.conn != nil {
+					_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				}
 				return
 			}
 
-			err := c.conn.WriteJSON(message)
-			if err != nil {
-				log.Printf("Write error: %v", err)
-				return
+			if c.conn != nil {
+				if err := c.conn.WriteJSON(message); err != nil {
+					log.Printf("Write error: %v", err)
+					return
+				}
 			}
 
 		case <-ticker.C:
-			if err := c.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
-				log.Println("Ping error:", err)
-				return
+			if c.conn != nil {
+				if err := c.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
+					log.Println("Ping error:", err)
+					return
+				}
 			}
 
 		case <-c.close:
@@ -201,17 +205,15 @@ func (c *Client) writePump() {
 // processingPump handles message processing logic.
 func (c *Client) processingPump() {
 	defer func() {
-		if c.conn != nil {
-			c.conn.Close()
-		}
-		if c.dbConn != nil {
-			c.dbConn.Close()
-		}
+		c.shutdown()
 	}()
 
 	for {
 		select {
-		case msg := <-c.receive:
+		case msg, ok := <-c.receive:
+			if !ok {
+				return
+			}
 			switch msg.Type {
 			case "start":
 				c.handleDBConn(msg)

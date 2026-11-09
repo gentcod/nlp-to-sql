@@ -35,46 +35,60 @@ func initGenModelWithCachedContent(Opts LLMOpts) (*Model, error) {
 		return nil, err
 	}
 
-	cc, err := client.Caches.Create(ctx, "gemini-1.5-flash-001", &genai.CreateCachedContentConfig{
-		SystemInstruction: genai.NewContentFromText("You are an expert analyzing transcripts.", genai.RoleUser),
+	modelName := Opts.Model
+	if modelName == "" {
+		modelName = "gemini-1.5-flash-001"
+	}
+
+	cc, err := client.Caches.Create(ctx, modelName, &genai.CreateCachedContentConfig{
+		SystemInstruction: genai.NewContentFromText("You are an expert analyzing database schemas and SQL queries.", genai.RoleUser),
 		Contents:          []*genai.Content{genai.NewContentFromText(queryInstructions(Opts.Context), genai.RoleUser)},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &Model{client: client, model: "gemini-1.5-flash-001", cachedName: cc.Name}, nil
+	return &Model{client: client, model: modelName, cachedName: cc.Name}, nil
 }
 
 func (llm *GeminiLLM) GenerateQuery(que string) (string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: llm.Opts.ApiKey})
 	if err != nil {
-		return llm.Query, err
+		return "", err
 	}
-	res, err := client.Models.GenerateContent(ctx, llm.Opts.Model,
+	modelName := llm.Opts.Model
+	if modelName == "" {
+		modelName = "gemini-1.5-flash-001"
+	}
+	res, err := client.Models.GenerateContent(ctx, modelName,
 		[]*genai.Content{genai.NewContentFromText(que, genai.RoleUser)},
 		&genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(queryInstructions(llm.Opts.Context), genai.RoleUser),
 		})
 	if err != nil {
-		return llm.Query, err
+		return "", err
 	}
-	llm.Query, err = getGeminiResponse(res)
+	query, err := getGeminiResponse(res)
 	if err != nil {
-		return llm.Query, err
+		return "", err
 	}
 
-	return llm.Query, nil
+	llm.Query = query
+	return query, nil
 }
 
 func (llm *GeminiLLM) GenerateResponse(data interface{}, que string) (string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{APIKey: llm.Opts.ApiKey})
 	if err != nil {
-		return llm.Response, err
+		return "", err
 	}
-	res, err := client.Models.GenerateContent(ctx, llm.Opts.Model,
+	modelName := llm.Opts.Model
+	if modelName == "" {
+		modelName = "gemini-1.5-flash-001"
+	}
+	res, err := client.Models.GenerateContent(ctx, modelName,
 		[]*genai.Content{genai.NewContentFromText("What is the summary of the data?", genai.RoleUser)},
 		&genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(strings.Join([]string{
@@ -84,31 +98,19 @@ func (llm *GeminiLLM) GenerateResponse(data interface{}, que string) (string, er
 			}, "\n"), genai.RoleUser),
 		})
 	if err != nil {
-		return llm.Response, err
+		return "", err
 	}
-	llm.Response, err = getGeminiResponse(res)
+	resp, err := getGeminiResponse(res)
 	if err != nil {
-		return llm.Response, err
+		return "", err
 	}
 
-	return llm.Response, nil
+	llm.Response = resp
+	return resp, nil
 }
 
 func getGeminiResponse(resp *genai.GenerateContentResponse) (string, error) {
 	return resp.Text(), nil
-}
-
-func queryInstructions(schema any) string {
-	return strings.Join([]string{
-		"Generate a sql query from the next stream of input or text",
-		"Only SELECT queries or queries to read data should be generated",
-		fmt.Sprintf("The Schema for the database is in the form: %v", schema),
-		"Only queries based on the database schema should be generated",
-		"Omit fields or columns with sensitive data such as password, hashed_password or similar fields no matter the conditions stated in corresponding statements.",
-		"If none of the conditions are satisfied, return a custom error response",
-		"If all the conditions are satisfied, return only the SQL query as a response",
-		"Return the response as plain text rather than a block of code and remove the indentations",
-	}, "\n")
 }
 
 func (llm *GeminiLLM) GetModelContext() (interface{}, error) {
@@ -120,17 +122,20 @@ func (llm *GeminiLLM) GetModelContext() (interface{}, error) {
 	return model, err
 }
 
+// GenerateCachedResponse generates content using the remote Gemini cache and guarantees cache cleanup on exit.
 func (model *Model) GenerateCachedResponse(prompt string) (string, error) {
 	ctx := context.Background()
+	defer func() {
+		if model.client != nil && model.cachedName != "" {
+			_, _ = model.client.Caches.Delete(ctx, model.cachedName, nil)
+		}
+	}()
+
 	res, err := model.client.Models.GenerateContent(ctx, model.model,
 		[]*genai.Content{genai.NewContentFromText(prompt, genai.RoleUser)},
 		&genai.GenerateContentConfig{CachedContent: model.cachedName})
 	if err != nil {
 		return "", err
-	}
-	_, deleteErr := model.client.Caches.Delete(ctx, model.cachedName, nil)
-	if deleteErr != nil {
-		return "", deleteErr
 	}
 
 	resp, err := getGeminiResponse(res)

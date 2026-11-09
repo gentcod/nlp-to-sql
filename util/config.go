@@ -20,6 +20,8 @@ type Config struct {
 	ProjectId           string        `json:"PROJECT_ID"`
 	Model               string        `json:"MODEL"`
 	Temp                string        `json:"TEMP"`
+	LLMType             string        `json:"LLM_TYPE"`
+	LLMBaseUrl          string        `json:"LLM_BASE_URL"`
 	CronSchedule        string        `json:"CRON_SCHEDULE"`
 	CronBatchSize       string        `json:"CRON_BATCH_SIZE"`
 	LogPath             string        `json:"LOG_PATH"`

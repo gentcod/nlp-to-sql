@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/gentcod/nlp-to-sql/util"
 	"github.com/google/uuid"
-	// "log"
 )
 
 // Store provides all functions to execute db SQL queries and transactions
@@ -55,7 +55,7 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 	return tx.Commit()
 }
 
-// DeleteExpRestrictedRecords is used for a cron job to delete auth records
+// DeleteExpDeletedUserRecords is used for a cron job to delete auth records
 // that have been persisted after user account deletion
 func (store *SQLStore) DeleteExpDeletedUserRecords(ctx context.Context, batchSize int) (totalDeleted int, err error) {
 	totalRecords, err := store.GetDeletedUsers(ctx)
@@ -89,7 +89,7 @@ func (store *SQLStore) DeleteExpDeletedUserRecords(ctx context.Context, batchSiz
 	return totalDeleted, nil
 }
 
-// GetData queries the database to return related data
+// GetData queries the database to return related data while redacting any sensitive column keys (Layer 3 Defense)
 func GetData(db *sql.DB, query string) ([]map[string]interface{}, error) {
 	rows, err := db.Query(query)
 	if err != nil {
@@ -116,6 +116,10 @@ func GetData(db *sql.DB, query string) ([]map[string]interface{}, error) {
 
 		row := make(map[string]interface{})
 		for i, col := range columns {
+			// Layer 3 Defense: Never include sensitive columns in returned row maps even if SELECT * was run
+			if util.IsSensitiveIdentifier(col) {
+				continue
+			}
 			val := values[i]
 			if b, ok := val.([]byte); ok {
 				row[col] = string(b)

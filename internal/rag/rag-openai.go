@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 )
 
 type OpenAiLLM struct {
@@ -14,7 +16,7 @@ type OpenAiLLM struct {
 	Response string
 }
 
-// NewGeminiLLM is used to initalize a LLM that communicates with OpenAI's ChatGPT API.
+// NewOpenAiLLM initializes an LLM that communicates with OpenAI's ChatGPT API.
 func NewOpenAiLLM(opts LLMOpts) LLM {
 	return &OpenAiLLM{
 		Opts: opts,
@@ -22,59 +24,94 @@ func NewOpenAiLLM(opts LLMOpts) LLM {
 }
 
 const openaiurl = "https://api.openai.com/v1/chat/completions"
-const openairole = "user"
 
-func (llm *OpenAiLLM) GenerateQuery(que string) (string, error) {
+func (llm *OpenAiLLM) completeChat(systemPrompt, userPrompt string) (string, error) {
+	modelName := strings.TrimSpace(llm.Opts.Model)
+	if modelName == "" {
+		modelName = "gpt-4o-mini"
+	}
+
 	payload := map[string]interface{}{
-		"model": llm.Opts.Model,
+		"model": modelName,
 		"messages": []map[string]string{
-			{"role": openairole, "content": que},
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
 		},
-		// "context": llm.Opts.context, //Mapper Schema
-		// "temperature": llm.Opts.Temp,
 	}
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return llm.Query, fmt.Errorf("error marshaling json: %v", err)
+		return "", fmt.Errorf("error marshaling json: %v", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, openaiurl, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return llm.Query, err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", llm.Opts.ApiKey))
-	req.Header.Set("OpenAI-Organization", llm.Opts.OrgId)
-	req.Header.Set("OpenAI-Project", llm.Opts.ProjectId)
+	if llm.Opts.OrgId != "" {
+		req.Header.Set("OpenAI-Organization", llm.Opts.OrgId)
+	}
+	if llm.Opts.ProjectId != "" {
+		req.Header.Set("OpenAI-Project", llm.Opts.ProjectId)
+	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return llm.Query, fmt.Errorf("error sending request: %v", err)
-
+		return "", fmt.Errorf("error sending request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return llm.Query, fmt.Errorf("non-ok http status: %v", resp.Status)
-
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return llm.Query, fmt.Errorf("error reading response body: %v", err)
-
+		return "", fmt.Errorf("error reading response body: %v", err)
 	}
 
-	fmt.Printf("Response: %s\n", body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("non-ok http status %v: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
 
+	var parsed struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("error decoding openai response: %v", err)
+	}
+	if len(parsed.Choices) == 0 {
+		return "", fmt.Errorf("openai returned no choices")
+	}
+
+	return strings.TrimSpace(parsed.Choices[0].Message.Content), nil
+}
+
+func (llm *OpenAiLLM) GenerateQuery(que string) (string, error) {
+	query, err := llm.completeChat(queryInstructions(llm.Opts.Context), que)
+	if err != nil {
+		return "", err
+	}
+	llm.Query = query
 	return llm.Query, nil
 }
 
 func (llm *OpenAiLLM) GenerateResponse(data interface{}, que string) (string, error) {
+	sysPrompt := strings.Join([]string{
+		"Generate a summary from the next stream of input or text",
+		fmt.Sprintf("Use these data: %v retrieved from the database in a conversational manner", data),
+		fmt.Sprintf("Use this as context for the data returned: %v", que),
+	}, "\n")
 
+	summary, err := llm.completeChat(sysPrompt, "What is the summary of the data?")
+	if err != nil {
+		return "", err
+	}
+	llm.Response = summary
 	return llm.Response, nil
 }
 
