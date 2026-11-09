@@ -16,7 +16,7 @@ jobs:
       postgres:
         image: postgres:12
         env:
-          POSTGRES_USER: root
+          POSTGRES_USER: dbchat
           POSTGRES_PASSWORD: secret
           POSTGRES_DB: dbchat
         ports:
