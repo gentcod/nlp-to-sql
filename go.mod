@@ -7,7 +7,7 @@ require (
 	github.com/auxten/postgresql-parser v1.0.1
 	github.com/gentcod/environ v1.1.0
 	github.com/gin-gonic/gin v1.12.0
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -16,8 +16,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.12.1
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	google.golang.org/genai v1.77.0
 	golang.org/x/crypto v0.58.0
+	google.golang.org/genai v1.77.0
 )
 
 require (
